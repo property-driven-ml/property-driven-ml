@@ -1,0 +1,55 @@
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
+\usepgfplotslibrary{colormaps, colorbrewer, groupplots}
+
+\usepackage{amsmath}
+
+\pgfplotsset{
+  compat=1.18,
+  cycle list/Set1,
+  % colorbrewer cycle lists don't typically define markers, so here we go:
+  % https://tikz.dev/pgfplots/libs-colorbrewer#autosec-8544
+  cycle multiindex* list={
+        mark list*\nextlist
+        Set1\nextlist
+    },
+  results/.style={
+    width=5.3cm,
+    height=4.3cm,
+    ytick distance=0.2,
+    xtick={0,10,...,50},
+    tick label style={font=\small},
+    title style={font=\small},
+    xlabel style={font=\small},
+    ylabel style={font=\small},
+    ytick={0,0.2,...,1},
+    ymin=0,
+    ymax=1,
+    yticklabels={0\%,20\%,40\%,60\%,80\%,100\%}, % there's probably a better way...
+    legend cell align={left},
+    legend style={
+      legend columns=3,
+      anchor=center,
+      align=center,
+      font=\small
+    },
+    legend image post style={mark indices={}},
+    enlargelimits=true,
+    xlabel=Epoch,
+    every axis plot post/.append style={
+      thick,
+      table/col sep=comma,
+      table/x=Epoch,
+    },
+  },
+  group/results/.style={
+    group style={
+      group size=3 by 1, 
+      ylabels at=edge left,
+      x descriptions at=edge bottom,
+      horizontal sep=0.25cm,
+    }, 
+    results,
+  },
+}
