@@ -14,7 +14,7 @@ def main():
                 if os.path.isdir(os.path.join(folder_constraint, folder_dataset)) and folder_dataset != '.git' and folder_dataset == 'alsomitra':
                     report_dir = f'{folder_constraint}/{folder_dataset}'
 
-                    report_files = sorted([f for f in os.listdir(report_dir) if f.endswith('.csv')])
+                    report_files = sorted([f for f in os.listdir(report_dir) if f.endswith('.csv') and not f.endswith('-RegressionPlot.csv')])
 
                     if len(report_files) < 1:
                         return

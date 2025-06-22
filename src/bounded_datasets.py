@@ -38,7 +38,9 @@ class BoundedDataset(torch.utils.data.Dataset):
 # standard epsilon ball (cube, \ell_{infty}) relative to each data point
 class EpsilonBall(BoundedDataset):
     def __init__(self, dataset: torch.utils.data.Dataset, eps: float | torch.Tensor, mean: torch.Tensor | tuple[float, ...] = (0.,), std: torch.Tensor | tuple[float, ...] = (1.,)):
-        eps = torch.as_tensor(eps) / torch.as_tensor(std)
+        x, _ = dataset[0]
+        eps = torch.as_tensor(eps) / torch.as_tensor(std) # TODO: check for MNIST + Alsomitra + GTSRB
+        eps = eps.view(*eps.shape, *([1] * (x.ndim - eps.ndim)))
 
         # NOTE: this will lead to issues on Windows as lambda cannot be pickled (so use num_workers=0 on Windows for the dataloader)
         super().__init__(dataset, lambda x: (x - eps, x + eps), mean, std)

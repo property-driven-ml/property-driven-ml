@@ -12,10 +12,10 @@ class BooleanLogic(Logic):
     def NOT(self, x):
         return torch.logical_not(x)
 
-    def AND(self, x, y):
+    def AND2(self, x, y):
         return torch.logical_and(x, y)
 
-    def OR(self, x, y):
+    def OR2(self, x, y):
         return torch.logical_or(x, y)
 
     def IMPL(self, x, y):

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ### MNIST
-COMMON_ARGS="--data-set=mnist --epochs=100 --batch-size=2048 --lr=1e-3"
+COMMON_ARGS="--data-set=mnist --epochs=100 --batch-size=2048 --lr=1e-3 --save-imgs"
 PGD_ARGS="--oracle-steps=20 --oracle-restarts=30"
 
 # MNIST Property: StandardRobustness
@@ -17,7 +17,7 @@ for LOGIC in "" "--logic=DL2 --initial-dl-weight=1.5" "--logic=GD --initial-dl-w
 done
 
 ### ALSOMITRA
-COMMON_ARGS="--data-set=alsomitra --epochs=100 --batch-size=64 --lr=1e-3 --save-onnx"
+COMMON_ARGS="--data-set=alsomitra --epochs=100 --batch-size=64 --lr=1e-3"
 PGD_ARGS="--oracle-steps=50 --oracle-restarts=80"
 
 # Alsomitra Property 1: (y >= 2 - x) => (e_x >= 0.187)
@@ -65,5 +65,6 @@ for LOGIC in "" "--logic=DL2" "--logic=GD"; do
     --input-region="$INPUT_PROPERTY" \
     --output-constraint="$OUTPUT_PROPERTY" \
     $LOGIC \
-    --experiment-name="LipschitzRobustness"
+    --experiment-name="LipschitzRobustness" \
+    --save-onnx
 done

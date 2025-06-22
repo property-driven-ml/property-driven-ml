@@ -24,10 +24,11 @@ from torchvision.utils import save_image
 
 from alsomitra_dataset import AlsomitraDataset, AlsomitraInputRegion
 from bounded_datasets import EpsilonBall
-from models import MnistNet, AlsomitraNet
+from models import MnistNet, AlsomitraNet, GTSRBNet
 
 from dl2 import DL2
 from fuzzy_logics import *
+from stl import STL
 from constraints import *
 
 from util import maybe
@@ -67,7 +68,7 @@ def train(N: torch.nn.Module, device: torch.device, train_loader: torch.utils.da
         with torch.no_grad():
             random = oracle.uniform_random_sample(lo, hi)
 
-        adv = oracle.attack(N, x, y_target, lo, hi, logic, constraint)
+        adv = oracle.attack(N, x, y_target, lo, hi, constraint)
 
         # forward pass for constraint accuracy (constraint satisfaction on random samples)
         with torch.no_grad():
@@ -141,7 +142,7 @@ def test(N: torch.nn.Module, device: torch.device, test_loader: torch.utils.data
             random = oracle.uniform_random_sample(lo, hi)
 
         # get adversarial samples (requires grad)
-        adv = oracle.attack(N, x, y_target, lo, hi, logic, constraint)
+        adv = oracle.attack(N, x, y_target, lo, hi, constraint)
 
         # forward passes for constraint accuracy (constraint satisfaction on random samples) + constraint security (constraint satisfaction on adversarial samples)
         with torch.no_grad():
@@ -185,14 +186,15 @@ def main():
         ReichenbachFuzzyLogic(),
         GoguenFuzzyLogic(),
         ReichenbachSigmoidalFuzzyLogic(),
-        YagerFuzzyLogic()
+        YagerFuzzyLogic(),
+        STL(),
     ]
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch-size', type=int, required=True)
     parser.add_argument('--lr', type=float, required=True)
     parser.add_argument('--epochs', type=int, required=True, help='number of epochs to train for')
-    parser.add_argument('--data-set', type=str, required=True, choices=['mnist', 'alsomitra'])
+    parser.add_argument('--data-set', type=str, required=True, choices=['mnist', 'alsomitra', 'gtsrb'])
     parser.add_argument('--input-region', type=str, required=True, help='the input region induced by the precondition P(x)')
     parser.add_argument('--output-constraint', type=str, required=True, help='the output constraint given by Q(f(x))')
     parser.add_argument('--experiment-name', type=str, required=True)
@@ -262,6 +264,27 @@ def main():
         dataset_train, dataset_test = random_split(dataset, [.9, .1])
 
         N = AlsomitraNet().to(device)
+    elif args.data_set == 'gtsrb':
+        mean, std = (.3403, .3121, .3214), (.2724, .2608, .2669)
+
+        transform_train = transforms.Compose([
+            transforms.Resize((32, 32)),
+            transforms.RandomRotation(10),
+            transforms.RandomAffine(degrees=5, translate=(.1, .1)),
+            transforms.ColorJitter(brightness=.3, contrast=.3, saturation=.3, hue=.1),
+            transforms.ToTensor(),
+            transforms.Normalize(mean, std),
+        ])
+        transform_test = transforms.Compose([
+            transforms.Resize((32, 32)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean, std),
+        ])
+
+        dataset_train = datasets.GTSRB('../data', split="train", download=True, transform=transform_train)
+        dataset_test = datasets.GTSRB('../data', split="test", download=True, transform=transform_test)
+
+        N = GTSRBNet().to(device)
 
     ### Parse input constraint ###
 
@@ -302,12 +325,12 @@ def main():
         'AlsomitraInputRegion': CreateAlsomitraInputRegion
     }
 
-    dataset_train, dataset_test = eval(args.input_region, None, context)
+    wrapper_train, wrapper_test = eval(args.input_region, None, context)
 
-    train_loader = torch.utils.data.DataLoader(dataset_train, shuffle=True, drop_last=True, **kwargs)
-    test_loader = torch.utils.data.DataLoader(dataset_test, shuffle=False, drop_last=True, **kwargs)
+    train_loader = torch.utils.data.DataLoader(wrapper_train, shuffle=True, drop_last=True, **kwargs)
+    test_loader = torch.utils.data.DataLoader(wrapper_test, shuffle=False, drop_last=True, **kwargs)
 
-    print(f'len(dataset_train)={len(dataset_train)} len(dataset_test)={len(dataset_test)}')
+    print(f'len(dataset_train)={len(wrapper_train)} len(dataset_test)={len(wrapper_test)}')
     print(f'len(train_loader)={len(train_loader)} len(test_loader)={len(test_loader)}')
 
     ### Parse output constraint ###
@@ -321,11 +344,26 @@ def main():
     def CreateAlsomitraOutputConstraint(e_x: tuple[float, float]) -> AlsomitraOutputConstraint:
         lo, hi = e_x
         return AlsomitraOutputConstraint(device, None if lo is None else AlsomitraDataset.normalise_output(lo).squeeze(), None if hi is None else AlsomitraDataset.normalise_output(hi).squeeze())
+    
+    def CreateGroupConstraint(delta: float) -> GroupConstraint:
+        assert args.data_set == 'gtsrb', 'groups are only defined for GTSRB'
+
+        groups: list[list[int]] = [
+            [*range(6), 7, 8],    # speed limit signs
+            [9, 10, 15, 16],      # other prohibitory signs
+            [12, 13, 14, 17],     # unique signs
+            [11, *range(18, 32)], # danger signs
+            [*range(33, 41)],     # mandatory signs
+            [6, 32, 41, 42]       # derestriction signs
+        ]
+
+        return GroupConstraint(device, groups, delta)
 
     context = {
         'StandardRobustness': CreateStandardRobustnessConstraint,
         'LipschitzRobustness': CreateLipschitzRobustnessConstraint,
         'AlsomitraOutputConstraint': CreateAlsomitraOutputConstraint,
+        'Groups': CreateGroupConstraint,
         'inf': np.inf
     }
 
@@ -333,10 +371,14 @@ def main():
 
     ### Set up PGD, ADAM, GradNorm ###
 
+    x0, _ = dataset_train[0]
+
     if args.oracle == 'pgd':
-        oracle = PGD(device, args.oracle_steps, args.oracle_restarts, args.pgd_step_size, mean, std)
+        oracle_train = PGD(x0, logic, device, args.oracle_steps, args.oracle_restarts, args.pgd_step_size, mean, std)
+        oracle_test = PGD(x0, logics[0], device, args.oracle_steps, args.oracle_restarts, args.pgd_step_size, mean, std)
     else:
-        oracle = APGD(device, args.oracle_steps, args.oracle_restarts, mean, std)
+        oracle_train = APGD(x0, logic, device, args.oracle_steps, args.oracle_restarts, mean, std)
+        oracle_test = APGD(x0, logics[0], device, args.oracle_steps, args.oracle_restarts, mean, std)
 
     optimizer = optim.AdamW(N.parameters(), lr=args.lr, weight_decay=1e-4)
 
@@ -349,6 +391,8 @@ def main():
             folder = 'standard-robustness'
         elif isinstance(constraint, LipschitzRobustnessConstraint):
             folder = 'lipschitz-robustness'
+        elif isinstance(constraint, GroupConstraint):
+            folder = 'group-constraint'
         else:
             assert False, f'unknown constraint {constraint}!'
     else:
@@ -369,9 +413,12 @@ def main():
     def save_imgs(info: EpochInfoTrain | EpochInfoTest, epoch):
         if not args.save_imgs:
             return
+        
+        def denormalise(x: torch.Tensor) -> torch.Tensor:
+            return x * torch.as_tensor(std, device=x.device).view(-1, 1, 1) + torch.as_tensor(mean, device=x.device).view(-1, 1, 1)
 
         def save_img(img: torch.Tensor, name: str):
-            save_image(oracle.denormalise(img), os.path.join(save_dir, name))
+            save_image(denormalise(img), os.path.join(save_dir, name))
 
         if isinstance(info, EpochInfoTrain):
             prefix = 'train'
@@ -397,7 +444,7 @@ def main():
 
             if epoch > 0:
                 with_dl = (epoch > args.delay) and (not is_baseline)
-                train_info = train(N, device, train_loader, optimizer, oracle, grad_norm, logic, constraint, with_dl, is_classification=not isinstance(N, AlsomitraNet)) # TODO: better check?
+                train_info = train(N, device, train_loader, optimizer, oracle_train, grad_norm, logic, constraint, with_dl, is_classification=not isinstance(N, AlsomitraNet)) # TODO: better check?
                 train_time = time.time() - start
 
                 save_imgs(train_info, epoch)
@@ -407,7 +454,7 @@ def main():
                 train_info = EpochInfoTrain(0., 0., 0., 0., 0., 0., 1., 1., None, None, None)
                 train_time = 0.
 
-            test_info = test(N, device, test_loader, oracle, logic, constraint, is_classification=not isinstance(N, AlsomitraNet))
+            test_info = test(N, device, test_loader, oracle_test, logic, constraint, is_classification=not isinstance(N, AlsomitraNet))
             test_time = time.time() - start - train_time
 
             save_imgs(test_info, epoch)
