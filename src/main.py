@@ -3,6 +3,7 @@ from __future__ import print_function
 from collections import namedtuple
 
 import argparse
+import ast
 
 import time
 import os
@@ -37,6 +38,76 @@ from attacks import Attack, PGD, APGD
 
 EpochInfoTrain = namedtuple('EpochInfoTrain', 'pred_metric constr_acc constr_sec pred_loss random_loss constr_loss pred_loss_weight constr_loss_weight input_img adv_img random_img')
 EpochInfoTest = namedtuple('EpochInfoTest', 'pred_metric constr_acc constr_sec pred_loss random_loss constr_loss input_img adv_img random_img')
+
+# --- Minimal safe helpers to replace eval on user-controlled strings ---
+def _is_literal(node: ast.AST) -> bool:
+    if isinstance(node, ast.Constant):
+        return isinstance(node.value, (int, float, str, type(None)))
+    if isinstance(node, ast.Tuple):
+        return all(_is_literal(elt) for elt in node.elts)
+    if isinstance(node, ast.Name) and node.id == 'inf':
+        return True
+    return False
+
+def _literal_value(node: ast.AST):
+    if isinstance(node, ast.Constant):
+        return node.value
+    if isinstance(node, ast.Tuple):
+        return tuple(_literal_value(elt) for elt in node.elts)
+    if isinstance(node, ast.Name) and node.id == 'inf':
+        return float('inf')
+    raise ValueError('Only literal values are allowed in arguments')
+
+def safe_call(expr: str, allowed: dict):
+    tree = ast.parse(expr, mode='eval')
+    if not isinstance(tree, ast.Expression) or not isinstance(tree.body, ast.Call):
+        raise ValueError('Only simple function calls are allowed')
+    call = tree.body
+    if not isinstance(call.func, ast.Name):
+        raise ValueError('Only direct calls to allowed functions are permitted')
+    func_name = call.func.id
+    if func_name not in allowed:
+        raise ValueError(f"Function '{func_name}' is not allowed")
+    if not all(_is_literal(a) for a in call.args):
+        raise ValueError('Only literal positional arguments are allowed')
+    if not all(isinstance(kw, ast.keyword) and kw.arg and _is_literal(kw.value) for kw in call.keywords):
+        raise ValueError('Only literal keyword arguments are allowed')
+    args = [_literal_value(a) for a in call.args]
+    kwargs = {kw.arg: _literal_value(kw.value) for kw in call.keywords}
+    return allowed[func_name](*args, **kwargs)
+
+def _eval_arith(node: ast.AST, context: dict) -> float:
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return float(node.value)
+    if isinstance(node, ast.Name):
+        if node.id == 'inf':
+            return float('inf')
+        if node.id in context:
+            return float(context[node.id])
+        raise ValueError(f"Unknown variable '{node.id}' in bounds")
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        v = _eval_arith(node.operand, context)
+        return v if isinstance(node.op, ast.UAdd) else -v
+    if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
+        l = _eval_arith(node.left, context)
+        r = _eval_arith(node.right, context)
+        if isinstance(node.op, ast.Add):
+            return l + r
+        if isinstance(node.op, ast.Sub):
+            return l - r
+        if isinstance(node.op, ast.Mult):
+            return l * r
+        return l / r
+    raise ValueError('Only basic arithmetic (+,-,*,/) with numbers and variables is allowed in bounds')
+
+def safe_bounds(expr: str, context: dict) -> tuple[float, float]:
+    tree = ast.parse(expr, mode='eval')
+    if not isinstance(tree, ast.Expression) or not isinstance(tree.body, ast.Tuple) or len(tree.body.elts) != 2:
+        raise ValueError('Bounds must be a tuple expression of the form (lo, hi)')
+    lo_node, hi_node = tree.body.elts
+    lo = _eval_arith(lo_node, context)
+    hi = _eval_arith(hi_node, context)
+    return (lo, hi)
 
 def train(N: torch.nn.Module, device: torch.device, train_loader: torch.utils.data.DataLoader, optimizer, oracle: Attack, grad_norm: GradNorm, logic: Logic, constraint: Constraint, with_dl: bool, is_classification: bool) -> EpochInfoTrain:
     avg_pred_metric, avg_pred_loss = torch.tensor(0., device=device), torch.tensor(0., device=device)
@@ -309,7 +380,7 @@ def main():
             expressions = [v_x, v_y, omega, theta, x, y]
 
             bounds = {
-                var:(-np.inf, np.inf) if expr is None else eval(expr, None, context)
+                var: (-np.inf, np.inf) if expr is None else safe_bounds(expr, context)
                 for var, expr in zip(variables, expressions)
             }
 
@@ -320,12 +391,12 @@ def main():
 
         return tuple(AlsomitraInputRegion(ds, bounds_fn, mean, std) for ds in (dataset_train, dataset_test))
     
-    context = {
+    input_allowed = {
         'EpsilonBall': CreateEpsilonBall,
-        'AlsomitraInputRegion': CreateAlsomitraInputRegion
+        'AlsomitraInputRegion': CreateAlsomitraInputRegion,
     }
 
-    wrapper_train, wrapper_test = eval(args.input_region, None, context)
+    wrapper_train, wrapper_test = safe_call(args.input_region, input_allowed)
 
     train_loader = torch.utils.data.DataLoader(wrapper_train, shuffle=True, drop_last=True, **kwargs)
     test_loader = torch.utils.data.DataLoader(wrapper_test, shuffle=False, drop_last=True, **kwargs)
@@ -359,15 +430,14 @@ def main():
 
         return GroupConstraint(device, groups, delta)
 
-    context = {
+    output_allowed = {
         'StandardRobustness': CreateStandardRobustnessConstraint,
         'LipschitzRobustness': CreateLipschitzRobustnessConstraint,
         'AlsomitraOutputConstraint': CreateAlsomitraOutputConstraint,
         'Groups': CreateGroupConstraint,
-        'inf': np.inf
     }
 
-    constraint: Constraint = eval(args.output_constraint, None, context)
+    constraint: Constraint = safe_call(args.output_constraint, output_allowed)
 
     ### Set up PGD, ADAM, GradNorm ###
 
