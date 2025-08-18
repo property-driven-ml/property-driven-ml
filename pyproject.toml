@@ -5,12 +5,14 @@ description = "A general framework for property-driven machine learning with log
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
-    {name = "Thomas Flinkow"}
+    {name = "Thomas Flinkow"},
+    {name = "Gusts Gustavs Grinbergs"}
 ]
 maintainers = [
-    {name = "Thomas Flinkow"}
+    {name = "Thomas Flinkow"},
+    {name = "Gusts Gustavs Grinbergs"}
 ]
-license = "MIT"
+license = {text = "MIT"}
 keywords = ["machine learning", "property driven", "constraints", "fuzzy logic", "adversarial training", "neural networks", "pytorch"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -47,6 +49,7 @@ dev = [
     "black>=22.0",
     "flake8>=5.0",
     "mypy>=1.0",
+    "twine>=6.1.0",
 ]
 
 [project.scripts]
@@ -70,8 +73,3 @@ explicit = true
 [tool.uv.sources]
 torch = { index = "pytorch-cu121" }
 torchvision = { index = "pytorch-cu121" }
-
-[dependency-groups]
-dev = [
-    "twine>=6.1.0",
-]
