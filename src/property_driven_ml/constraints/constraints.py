@@ -5,10 +5,10 @@ import torch.linalg as LA
 from abc import ABC, abstractmethod
 from typing import Callable
 
-from logic import Logic
-from boolean_logic import BooleanLogic
-from fuzzy_logics import FuzzyLogic
-from stl import STL
+from ..logics.logic import Logic
+from ..logics.boolean_logic import BooleanLogic
+from ..logics.fuzzy_logics import FuzzyLogic
+from ..logics.stl import STL
 
 class Constraint(ABC):
     def __init__(self, device: torch.device):
@@ -22,7 +22,7 @@ class Constraint(ABC):
     # usage:
     # loss, sat = eval()
     # sat indicates whether the constraint is satisfied or not
-    def eval(self, N: torch.nn.Module, x: torch.Tensor, x_adv: torch.Tensor, y_target: torch.Tensor, logic: Logic, reduction: str | None = None, skip_sat: bool = False) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+    def eval(self, N: torch.nn.Module, x: torch.Tensor, x_adv: torch.Tensor, y_target: torch.Tensor | None, logic: Logic, reduction: str | None = None, skip_sat: bool = False) -> tuple[torch.Tensor | None, torch.Tensor | None]:
         constraint = self.get_constraint(N, x, x_adv, y_target)
         loss, sat = None, None
 
@@ -44,6 +44,9 @@ class Constraint(ABC):
             if reduction == None:
                 return value
             elif reduction == 'mean':
+                # Convert boolean tensors to float for mean calculation
+                if value.dtype == torch.bool:
+                    value = value.float()
                 return torch.mean(value)
             elif reduction == 'sum':
                 return torch.sum(value)
@@ -59,7 +62,7 @@ class StandardRobustnessConstraint(Constraint):
         assert 0. <= delta <= 1., 'delta is a probability and should be within the range [0, 1]'
         self.delta = torch.as_tensor(delta, device=self.device)
 
-    def get_constraint(self, N: torch.nn.Module, x: torch.Tensor, x_adv: torch.Tensor, _y_target: None) -> Callable[[Logic], torch.tensor]:
+    def get_constraint(self, N: torch.nn.Module, x: torch.Tensor, x_adv: torch.Tensor, _y_target: None) -> Callable[[Logic], torch.Tensor]:
         y = N(x)
         y_adv = N(x_adv)
 

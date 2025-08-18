@@ -4,8 +4,8 @@ from abc import ABC, abstractmethod
 
 import torch
 
-from logic import Logic
-from constraints import Constraint
+from ..logics.logic import Logic
+from ..constraints.constraints import Constraint
 
 class Attack(ABC):
     def __init__(self, x0: torch.Tensor, logic: Logic, device: torch.device, steps: int, restarts: int, mean: torch.Tensor | tuple[float, ...] = (0.,), std: torch.Tensor | tuple[float, ...] = (1.,)):

@@ -1,8 +1,8 @@
 import torch
 
-from logic import Logic
+from .logic import Logic
 
-from util import safe_div
+from ..util import safe_div
     
 class STL(Logic):
     def __init__(self, k=1.):
