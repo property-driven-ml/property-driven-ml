@@ -35,10 +35,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/tflinkow/property-driven-ml"
-Repository = "https://github.com/tflinkow/property-driven-ml"
-"Bug Tracker" = "https://github.com/tflinkow/property-driven-ml/issues"
-Documentation = "https://github.com/tflinkow/property-driven-ml#readme"
+Homepage = "https://github.com/ggustavs/property-driven-ml"
+Repository = "https://github.com/ggustavs/property-driven-ml"
+"Bug Tracker" = "https://github.com/ggustavs/property-driven-ml/issues"
+Documentation = "https://github.com/ggustavs/property-driven-ml#readme"
 
 [project.optional-dependencies]
 dev = [
