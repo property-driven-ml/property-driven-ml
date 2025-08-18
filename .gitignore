@@ -1,5 +1,21 @@
-__pycache__
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Build and distribution
+build/
+dist/
+*.egg-info/
+
+# OS files
 .DS_Store
+
+# Editor
 .vscode/
 
+# Project specific
+*.typed
 data/
+
+# API credentials
+.pypirc

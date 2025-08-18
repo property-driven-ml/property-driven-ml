@@ -1,8 +1,8 @@
 import torch
 
-from logic import Logic
+from .logic import Logic
 
-from util import safe_div, safe_pow
+from ..util import safe_div, safe_pow
 
 class FuzzyLogic(Logic):
     def __init__(self, name: str):

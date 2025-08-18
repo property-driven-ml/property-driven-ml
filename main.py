@@ -23,18 +23,14 @@ from torch.utils.data import random_split
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
 
-from alsomitra_dataset import AlsomitraDataset, AlsomitraInputRegion
-from bounded_datasets import EpsilonBall
-from models import MnistNet, AlsomitraNet, GTSRBNet
+from examples.alsomitra_dataset import AlsomitraDataset, AlsomitraInputRegion
+from examples.models import MnistNet, AlsomitraNet, GTSRBNet
 
-from dl2 import DL2
-from fuzzy_logics import *
-from stl import STL
-from constraints import *
-
-from util import maybe
-from grad_norm import GradNorm
-from attacks import Attack, PGD, APGD
+# Import from the property_driven_ml package
+import property_driven_ml.logics as logics
+import property_driven_ml.constraints as constraints
+import property_driven_ml.training as training
+from property_driven_ml import maybe
 
 EpochInfoTrain = namedtuple('EpochInfoTrain', 'pred_metric constr_acc constr_sec pred_loss random_loss constr_loss pred_loss_weight constr_loss_weight input_img adv_img random_img')
 EpochInfoTest = namedtuple('EpochInfoTest', 'pred_metric constr_acc constr_sec pred_loss random_loss constr_loss input_img adv_img random_img')
@@ -109,7 +105,7 @@ def safe_bounds(expr: str, context: dict) -> tuple[float, float]:
     hi = _eval_arith(hi_node, context)
     return (lo, hi)
 
-def train(N: torch.nn.Module, device: torch.device, train_loader: torch.utils.data.DataLoader, optimizer, oracle: Attack, grad_norm: GradNorm, logic: Logic, constraint: Constraint, with_dl: bool, is_classification: bool) -> EpochInfoTrain:
+def train(N: torch.nn.Module, device: torch.device, train_loader: torch.utils.data.DataLoader, optimizer, oracle: training.Attack, grad_norm: training.GradNorm, logic: logics.Logic, constraint: constraints.Constraint, with_dl: bool, is_classification: bool) -> EpochInfoTrain:
     avg_pred_metric, avg_pred_loss = torch.tensor(0., device=device), torch.tensor(0., device=device)
     avg_constr_acc, avg_constr_sec, avg_constr_loss, avg_random_loss = torch.tensor(0., device=device), torch.tensor(0., device=device), torch.tensor(0., device=device), torch.tensor(0., device=device)
 
@@ -184,7 +180,7 @@ def train(N: torch.nn.Module, device: torch.device, train_loader: torch.utils.da
         random_img=images['random']
     )
 
-def test(N: torch.nn.Module, device: torch.device, test_loader: torch.utils.data.DataLoader, oracle: Attack, logic: Logic, constraint: Constraint, is_classification: bool) -> EpochInfoTest:
+def test(N: torch.nn.Module, device: torch.device, test_loader: torch.utils.data.DataLoader, oracle: training.Attack, logic: logics.Logic, constraint: constraints.Constraint, is_classification: bool) -> EpochInfoTest:
     correct, constr_acc, constr_sec = torch.tensor(0., device=device), torch.tensor(0., device=device), torch.tensor(0., device=device)
     avg_pred_loss, avg_constr_loss, avg_random_loss = torch.tensor(0., device=device), torch.tensor(0., device=device), torch.tensor(0., device=device)
 
@@ -249,16 +245,28 @@ def test(N: torch.nn.Module, device: torch.device, test_loader: torch.utils.data
     )
 
 def main():
-    logics: list[Logic] = [
-        DL2(),
-        GoedelFuzzyLogic(),
-        KleeneDienesFuzzyLogic(),
-        LukasiewiczFuzzyLogic(),
-        ReichenbachFuzzyLogic(),
-        GoguenFuzzyLogic(),
-        ReichenbachSigmoidalFuzzyLogic(),
-        YagerFuzzyLogic(),
-        STL(),
+    logics_map = {
+        'DL2': logics.DL2(),
+        'GD': logics.GoedelFuzzyLogic(),
+        'KD': logics.KleeneDienesFuzzyLogic(),
+        'LK': logics.LukasiewiczFuzzyLogic(),
+        'RC': logics.ReichenbachFuzzyLogic(),
+        'GG': logics.GoguenFuzzyLogic(),
+        'RCS': logics.ReichenbachSigmoidalFuzzyLogic(),
+        'YG': logics.YagerFuzzyLogic(),
+        'STL': logics.STL(),
+    }
+
+    logics_list: list[logics.Logic] = [
+        logics.DL2(),
+        logics.GoedelFuzzyLogic(),
+        logics.KleeneDienesFuzzyLogic(),
+        logics.LukasiewiczFuzzyLogic(),
+        logics.ReichenbachFuzzyLogic(),
+        logics.GoguenFuzzyLogic(),
+        logics.ReichenbachSigmoidalFuzzyLogic(),
+        logics.YagerFuzzyLogic(),
+        logics.STL(),
     ]
 
     parser = argparse.ArgumentParser()
@@ -274,8 +282,8 @@ def main():
     parser.add_argument('--oracle-restarts', type=int, default=10, help='number of PGD random restarts')
     parser.add_argument('--pgd-step-size', type=float, default=.03)
     parser.add_argument('--delay', type=int, default=0, help='number of epochs to wait before introducing constraint loss')
-    parser.add_argument('--logic', type=str, default=None, choices=[l.name for l in logics], help='the differentiable logic to use for training with the constraint, or None')
-    parser.add_argument('--results-dir', type=str, default='../results', help='directory in which to save .onnx and .csv files')
+    parser.add_argument('--logic', type=str, default=None, choices=[l.name for l in logics_list], help='the differentiable logic to use for training with the constraint, or None')
+    parser.add_argument('--results-dir', type=str, default='results', help='directory in which to save .onnx and .csv files')
     parser.add_argument('--initial-dl-weight', type=float, default=1.)
     parser.add_argument('--grad-norm-alpha', type=float, default=.12, help='restoring force for GradNorm')
     parser.add_argument('--grad-norm-lr', type=float, default=None, help='learning rate for GradNorm weights, equal to --lr if not specified')
@@ -303,10 +311,10 @@ def main():
         device = torch.device('cpu')
 
     if args.logic == None:
-        logic = logics[0] # need some logic loss for oracle even for baseline
+        logic = logics_list[0] # need some logic loss for oracle even for baseline
         is_baseline = True
     else:
-        logic = next(l for l in logics if l.name == args.logic)
+        logic = next(l for l in logics_list if l.name == args.logic)
         is_baseline = False
 
     ### Set up dataset ###
@@ -324,14 +332,14 @@ def main():
             transforms.Normalize(mean, std),
         ])
 
-        dataset_train = datasets.MNIST('../data', train=True, download=True, transform=transform_train)
-        dataset_test = datasets.MNIST('../data', train=False, download=True, transform=transform_test)
+        dataset_train = datasets.MNIST('data', train=True, download=True, transform=transform_train)
+        dataset_test = datasets.MNIST('data', train=False, download=True, transform=transform_test)
 
         N = MnistNet().to(device)
     elif args.data_set == 'alsomitra':
         mean, std = (0.,), (1.,)
 
-        dataset = AlsomitraDataset('alsomitra_data_680.csv')
+        dataset = AlsomitraDataset('examples/alsomitra_data_680.csv')
         dataset_train, dataset_test = random_split(dataset, [.9, .1])
 
         N = AlsomitraNet().to(device)
@@ -352,15 +360,16 @@ def main():
             transforms.Normalize(mean, std),
         ])
 
-        dataset_train = datasets.GTSRB('../data', split="train", download=True, transform=transform_train)
-        dataset_test = datasets.GTSRB('../data', split="test", download=True, transform=transform_test)
+        dataset_train = datasets.GTSRB('data', split="train", download=True, transform=transform_train)
+        dataset_test = datasets.GTSRB('data', split="test", download=True, transform=transform_test)
 
         N = GTSRBNet().to(device)
 
     ### Parse input constraint ###
 
-    def CreateEpsilonBall(eps: float) -> tuple[EpsilonBall, EpsilonBall]:
-        return tuple(EpsilonBall(ds, eps, mean, std) for ds in (dataset_train, dataset_test))
+    def CreateEpsilonBall(eps: float) -> tuple[constraints.EpsilonBall, constraints.EpsilonBall]:
+        train_constraint, test_constraint = constraints.EpsilonBall(dataset_train, eps, mean, std), constraints.EpsilonBall(dataset_test, eps, mean, std)
+        return train_constraint, test_constraint
 
     def CreateAlsomitraInputRegion(v_x: str | None = None, v_y: str | None = None, omega: str | None = None, theta: str | None = None, x: str | None = None, y: str | None = None) -> tuple[AlsomitraInputRegion, AlsomitraInputRegion]:
         def bounds_fn(input: torch.Tensor):
@@ -389,7 +398,8 @@ def main():
 
             return (lo, hi)
 
-        return tuple(AlsomitraInputRegion(ds, bounds_fn, mean, std) for ds in (dataset_train, dataset_test))
+        train_constraint, test_constraint = AlsomitraInputRegion(dataset_train, bounds_fn, mean, std), AlsomitraInputRegion(dataset_test, bounds_fn, mean, std)
+        return train_constraint, test_constraint
     
     input_allowed = {
         'EpsilonBall': CreateEpsilonBall,
@@ -406,17 +416,17 @@ def main():
 
     ### Parse output constraint ###
 
-    def CreateStandardRobustnessConstraint(delta: float) -> StandardRobustnessConstraint:
-        return StandardRobustnessConstraint(device, delta)
+    def CreateStandardRobustnessConstraint(delta: float) -> constraints.StandardRobustnessConstraint:
+        return constraints.StandardRobustnessConstraint(device, delta)
     
-    def CreateLipschitzRobustnessConstraint(L: float) -> LipschitzRobustnessConstraint:
-        return LipschitzRobustnessConstraint(device, L)
+    def CreateLipschitzRobustnessConstraint(L: float) -> constraints.LipschitzRobustnessConstraint:
+        return constraints.LipschitzRobustnessConstraint(device, L)
     
-    def CreateAlsomitraOutputConstraint(e_x: tuple[float, float]) -> AlsomitraOutputConstraint:
+    def CreateAlsomitraOutputConstraint(e_x: tuple[float, float]) -> constraints.AlsomitraOutputConstraint:
         lo, hi = e_x
-        return AlsomitraOutputConstraint(device, None if lo is None else AlsomitraDataset.normalise_output(lo).squeeze(), None if hi is None else AlsomitraDataset.normalise_output(hi).squeeze())
+        return constraints.AlsomitraOutputConstraint(device, None if lo is None else AlsomitraDataset.normalise_output(lo).squeeze(), None if hi is None else AlsomitraDataset.normalise_output(hi).squeeze())
     
-    def CreateGroupConstraint(delta: float) -> GroupConstraint:
+    def CreateGroupConstraint(delta: float) -> constraints.GroupConstraint:
         assert args.data_set == 'gtsrb', 'groups are only defined for GTSRB'
 
         groups: list[list[int]] = [
@@ -428,7 +438,7 @@ def main():
             [6, 32, 41, 42]       # derestriction signs
         ]
 
-        return GroupConstraint(device, groups, delta)
+        return constraints.GroupConstraint(device, groups, delta)
 
     output_allowed = {
         'StandardRobustness': CreateStandardRobustnessConstraint,
@@ -437,27 +447,27 @@ def main():
         'Groups': CreateGroupConstraint,
     }
 
-    constraint: Constraint = safe_call(args.output_constraint, output_allowed)
+    constraint: constraints.Constraint = safe_call(args.output_constraint, output_allowed)
 
     ### Set up PGD, ADAM, GradNorm ###
 
     x0, _ = dataset_train[0]
 
     if args.oracle == 'pgd':
-        oracle_train = PGD(x0, logic, device, args.oracle_steps, args.oracle_restarts, args.pgd_step_size, mean, std)
-        oracle_test = PGD(x0, logics[0], device, args.oracle_steps, args.oracle_restarts, args.pgd_step_size, mean, std)
+        oracle_train = training.PGD(x0, logic, device, args.oracle_steps, args.oracle_restarts, args.pgd_step_size, mean, std)
+        oracle_test = training.PGD(x0, logics_list[0], device, args.oracle_steps, args.oracle_restarts, args.pgd_step_size, mean, std)
     else:
-        oracle_train = APGD(x0, logic, device, args.oracle_steps, args.oracle_restarts, mean, std)
-        oracle_test = APGD(x0, logics[0], device, args.oracle_steps, args.oracle_restarts, mean, std)
+        oracle_train = training.APGD(x0, logic, device, args.oracle_steps, args.oracle_restarts, mean, std)
+        oracle_test = training.APGD(x0, logics_list[0], device, args.oracle_steps, args.oracle_restarts, mean, std)
 
     optimizer = optim.AdamW(N.parameters(), lr=args.lr, weight_decay=1e-4)
 
-    grad_norm = GradNorm(N, device, optimizer, lr=args.grad_norm_lr if args.grad_norm_lr is not None else args.lr, alpha=args.grad_norm_alpha, initial_dl_weight=args.initial_dl_weight)
+    grad_norm = training.GradNorm(N, device, optimizer, lr=args.grad_norm_lr if args.grad_norm_lr is not None else args.lr, alpha=args.grad_norm_alpha, initial_dl_weight=args.initial_dl_weight)
 
     ### Set up folders for results and PGD images ###
 
     if args.experiment_name == None:
-        if isinstance(constraint, StandardRobustnessConstraint):
+        if isinstance(constraint, constraints.StandardRobustnessConstraint):
             folder = 'standard-robustness'
         elif isinstance(constraint, LipschitzRobustnessConstraint):
             folder = 'lipschitz-robustness'

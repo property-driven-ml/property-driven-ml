@@ -1,6 +1,6 @@
 import torch
 
-from logic import Logic
+from .logic import Logic
 
 class BooleanLogic(Logic):
     def __init__(self):

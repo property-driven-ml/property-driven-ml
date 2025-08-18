@@ -1,0 +1,6 @@
+include README.md
+include LICENSE
+include src/property_driven_ml/py.typed
+recursive-include src/property_driven_ml *.py
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
