@@ -1,6 +1,6 @@
 [project]
 name = "property-driven-ml"
-version = "0.1.0"
+version = "0.1.1"
 description = "A general framework for property-driven machine learning with logical constraints"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -12,7 +12,7 @@ maintainers = [
     {name = "Thomas Flinkow"},
     {name = "Gusts Gustavs Grinbergs"}
 ]
-license = {text = "MIT"}
+license = "MIT"
 keywords = ["machine learning", "property driven", "constraints", "fuzzy logic", "adversarial training", "neural networks", "pytorch"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -73,3 +73,8 @@ explicit = true
 [tool.uv.sources]
 torch = { index = "pytorch-cu121" }
 torchvision = { index = "pytorch-cu121" }
+
+[dependency-groups]
+dev = [
+    "twine>=6.1.0",
+]

@@ -48,8 +48,7 @@ echo "📋 Available commands:"
 echo "1. upload-test    - Upload to TestPyPI"
 echo "2. upload-prod    - Upload to PyPI (production)"
 echo "3. check          - Check distribution files"
-echo "4. install-test   - Install from TestPyPI for testing"
-echo "5. status         - Check token configuration status"
+echo "4. status         - Check token configuration status"
 
 if [[ $# -eq 0 ]]; then
     echo ""
@@ -85,7 +84,10 @@ case "$1" in
         echo ""
         echo "✅ Upload to TestPyPI completed!"
         echo "📝 To test the installation:"
+        echo "   # Using pip:"
         echo "   pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ property-driven-ml"
+        echo "   # Using uv:"
+        echo "   uv pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ property-driven-ml"
         ;;
     "upload-prod")
         echo ""
@@ -117,7 +119,10 @@ case "$1" in
             echo ""
             echo "✅ Upload to PyPI completed!"
             echo "📝 Your package is now available:"
+            echo "   # Using pip:"
             echo "   pip install property-driven-ml"
+            echo "   # Using uv:"
+            echo "   uv pip install property-driven-ml"
         else
             echo "❌ Upload cancelled"
         fi
@@ -129,14 +134,6 @@ case "$1" in
         echo ""
         echo "📊 Distribution files:"
         ls -lh dist/
-        ;;
-    "install-test")
-        echo ""
-        echo "🧪 Installing from TestPyPI for testing..."
-        pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ property-driven-ml
-        echo ""
-        echo "✅ Test installation completed!"
-        echo "📝 Test with: python -c 'import property_driven_ml; print(\"Success!\")'"
         ;;
     "status")
         echo ""
