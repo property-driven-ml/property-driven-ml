@@ -2,7 +2,7 @@ import torch
 
 from .logic import Logic
 
-from ..util import safe_div
+from ..utils import safe_div
     
 class STL(Logic):
     def __init__(self, k=1.):
