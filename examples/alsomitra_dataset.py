@@ -4,7 +4,7 @@ import pandas as pd
 
 from typing import Callable
 
-from bounded_datasets import BoundedDataset
+from property_driven_ml.constraints.bounded_datasets import BoundedDataset
 
 class AlsomitraDataset(torch.utils.data.Dataset):
     def __init__(self, csv_file):

@@ -1,0 +1,80 @@
+[project]
+name = "property-driven-ml"
+version = "0.1.1"
+description = "A general framework for property-driven machine learning with logical constraints"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    {name = "Thomas Flinkow"},
+    {name = "Gusts Gustavs Grinbergs"}
+]
+maintainers = [
+    {name = "Thomas Flinkow"},
+    {name = "Gusts Gustavs Grinbergs"}
+]
+license = "MIT"
+keywords = ["machine learning", "property driven", "constraints", "fuzzy logic", "adversarial training", "neural networks", "pytorch"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "idx2numpy>=1.2.3",
+    "numpy>=2.3.2",
+    "onnx>=1.18.0",
+    "onnxruntime>=1.22.1",
+    "pandas>=2.3.1",
+    "torch>=2.5.1",
+    "torchvision>=0.2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/ggustavs/property-driven-ml"
+Repository = "https://github.com/ggustavs/property-driven-ml"
+"Bug Tracker" = "https://github.com/ggustavs/property-driven-ml/issues"
+Documentation = "https://github.com/ggustavs/property-driven-ml#readme"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=22.0",
+    "flake8>=5.0",
+    "mypy>=1.0",
+    "twine>=6.1.0",
+]
+
+[project.scripts]
+property-driven-ml = "property_driven_ml.cli:main"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+property_driven_ml = ["py.typed"]
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu121" }
+torchvision = { index = "pytorch-cu121" }
+
+[dependency-groups]
+dev = [
+    "twine>=6.1.0",
+]
