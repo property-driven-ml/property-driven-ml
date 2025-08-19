@@ -1,24 +1,22 @@
 from __future__ import print_function
 
 from collections import namedtuple
+from typing import Dict, Any, Tuple, Optional, Union
 
 import argparse
 import ast
-
 import time
 import os
 import csv
 import sys
 
 import numpy as np
-
 import onnx
 
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-
-from torch.utils.data import random_split
+from torch.utils.data import random_split, DataLoader
 
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
@@ -26,90 +24,20 @@ from torchvision.utils import save_image
 from examples.alsomitra_dataset import AlsomitraDataset, AlsomitraInputRegion
 from examples.models import MnistNet, AlsomitraNet, GTSRBNet
 
+from property_driven_ml.utils.factories import CONSTRAINT_FACTORIES
+
 # Import from the property_driven_ml package
 import property_driven_ml.logics as logics
 import property_driven_ml.constraints as constraints
 import property_driven_ml.training as training
-from property_driven_ml import maybe
+from property_driven_ml.utils import maybe, safe_call, safe_bounds
 
 EpochInfoTrain = namedtuple('EpochInfoTrain', 'pred_metric constr_acc constr_sec pred_loss random_loss constr_loss pred_loss_weight constr_loss_weight input_img adv_img random_img')
 EpochInfoTest = namedtuple('EpochInfoTest', 'pred_metric constr_acc constr_sec pred_loss random_loss constr_loss input_img adv_img random_img')
 
-# --- Minimal safe helpers to replace eval on user-controlled strings ---
-def _is_literal(node: ast.AST) -> bool:
-    if isinstance(node, ast.Constant):
-        return isinstance(node.value, (int, float, str, type(None)))
-    if isinstance(node, ast.Tuple):
-        return all(_is_literal(elt) for elt in node.elts)
-    if isinstance(node, ast.Name) and node.id == 'inf':
-        return True
-    return False
-
-def _literal_value(node: ast.AST):
-    if isinstance(node, ast.Constant):
-        return node.value
-    if isinstance(node, ast.Tuple):
-        return tuple(_literal_value(elt) for elt in node.elts)
-    if isinstance(node, ast.Name) and node.id == 'inf':
-        return float('inf')
-    raise ValueError('Only literal values are allowed in arguments')
-
-def safe_call(expr: str, allowed: dict):
-    tree = ast.parse(expr, mode='eval')
-    if not isinstance(tree, ast.Expression) or not isinstance(tree.body, ast.Call):
-        raise ValueError('Only simple function calls are allowed')
-    call = tree.body
-    if not isinstance(call.func, ast.Name):
-        raise ValueError('Only direct calls to allowed functions are permitted')
-    func_name = call.func.id
-    if func_name not in allowed:
-        raise ValueError(f"Function '{func_name}' is not allowed")
-    if not all(_is_literal(a) for a in call.args):
-        raise ValueError('Only literal positional arguments are allowed')
-    if not all(isinstance(kw, ast.keyword) and kw.arg and _is_literal(kw.value) for kw in call.keywords):
-        raise ValueError('Only literal keyword arguments are allowed')
-    args = [_literal_value(a) for a in call.args]
-    kwargs = {kw.arg: _literal_value(kw.value) for kw in call.keywords}
-    return allowed[func_name](*args, **kwargs)
-
-def _eval_arith(node: ast.AST, context: dict) -> float:
-    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-        return float(node.value)
-    if isinstance(node, ast.Name):
-        if node.id == 'inf':
-            return float('inf')
-        if node.id in context:
-            return float(context[node.id])
-        raise ValueError(f"Unknown variable '{node.id}' in bounds")
-    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
-        v = _eval_arith(node.operand, context)
-        return v if isinstance(node.op, ast.UAdd) else -v
-    if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
-        l = _eval_arith(node.left, context)
-        r = _eval_arith(node.right, context)
-        if isinstance(node.op, ast.Add):
-            return l + r
-        if isinstance(node.op, ast.Sub):
-            return l - r
-        if isinstance(node.op, ast.Mult):
-            return l * r
-        return l / r
-    raise ValueError('Only basic arithmetic (+,-,*,/) with numbers and variables is allowed in bounds')
-
-def safe_bounds(expr: str, context: dict) -> tuple[float, float]:
-    tree = ast.parse(expr, mode='eval')
-    if not isinstance(tree, ast.Expression) or not isinstance(tree.body, ast.Tuple) or len(tree.body.elts) != 2:
-        raise ValueError('Bounds must be a tuple expression of the form (lo, hi)')
-    lo_node, hi_node = tree.body.elts
-    lo = _eval_arith(lo_node, context)
-    hi = _eval_arith(hi_node, context)
-    return (lo, hi)
-
 def train(N: torch.nn.Module, device: torch.device, train_loader: torch.utils.data.DataLoader, optimizer, oracle: training.Attack, grad_norm: training.GradNorm, logic: logics.Logic, constraint: constraints.Constraint, with_dl: bool, is_classification: bool) -> EpochInfoTrain:
     avg_pred_metric, avg_pred_loss = torch.tensor(0., device=device), torch.tensor(0., device=device)
     avg_constr_acc, avg_constr_sec, avg_constr_loss, avg_random_loss = torch.tensor(0., device=device), torch.tensor(0., device=device), torch.tensor(0., device=device), torch.tensor(0., device=device)
-
-    images = { 'input': None, 'random': None, 'adv': None}
 
     N.train()
 
@@ -135,7 +63,7 @@ def train(N: torch.nn.Module, device: torch.device, train_loader: torch.utils.da
         with torch.no_grad():
             random = oracle.uniform_random_sample(lo, hi)
 
-        adv = oracle.attack(N, x, y_target, lo, hi, constraint)
+        adv = oracle.attack(N, x, y_target, (lo, hi), constraint)
 
         # forward pass for constraint accuracy (constraint satisfaction on random samples)
         with torch.no_grad():
@@ -161,6 +89,7 @@ def train(N: torch.nn.Module, device: torch.device, train_loader: torch.utils.da
 
         # save one original image, random sample, and adversarial sample image (for debugging, inspecting attacks)
         i = np.random.randint(0, x.size(0))
+        images = dict()
         images['input'], images['random'], images['adv'] = x[i], random[i], adv[i]
 
     if with_dl:
@@ -186,7 +115,6 @@ def test(N: torch.nn.Module, device: torch.device, test_loader: torch.utils.data
 
     total_samples = 0
 
-    images = { 'input': None, 'random': None, 'adv': None}
 
     N.eval()
 
@@ -209,7 +137,7 @@ def test(N: torch.nn.Module, device: torch.device, test_loader: torch.utils.data
             random = oracle.uniform_random_sample(lo, hi)
 
         # get adversarial samples (requires grad)
-        adv = oracle.attack(N, x, y_target, lo, hi, constraint)
+        adv = oracle.attack(N, x, y_target, (lo, hi), constraint)
 
         # forward passes for constraint accuracy (constraint satisfaction on random samples) + constraint security (constraint satisfaction on adversarial samples)
         with torch.no_grad():
@@ -224,6 +152,7 @@ def test(N: torch.nn.Module, device: torch.device, test_loader: torch.utils.data
 
         # save one original image, random sample, and adversarial sample image (for debugging, inspecting attacks)
         i = np.random.randint(0, x.size(0))
+        images = dict()
         images['input'], images['random'], images['adv'] = x[i], random[i], adv[i]
 
     if is_classification:
@@ -368,37 +297,44 @@ def main():
     ### Parse input constraint ###
 
     def CreateEpsilonBall(eps: float) -> tuple[constraints.EpsilonBall, constraints.EpsilonBall]:
-        train_constraint, test_constraint = constraints.EpsilonBall(dataset_train, eps, mean, std), constraints.EpsilonBall(dataset_test, eps, mean, std)
+        # Use centralized factory but call the returned functions with datasets
+        train_factory, test_factory = CONSTRAINT_FACTORIES['EpsilonBall'](eps)
+        train_constraint = train_factory(dataset_train, mean, std)
+        test_constraint = test_factory(dataset_test, mean, std)
         return train_constraint, test_constraint
 
     def CreateAlsomitraInputRegion(v_x: str | None = None, v_y: str | None = None, omega: str | None = None, theta: str | None = None, x: str | None = None, y: str | None = None) -> tuple[AlsomitraInputRegion, AlsomitraInputRegion]:
-        def bounds_fn(input: torch.Tensor):
-            # store the current data point
-            context = {
-                'v_x': input[0],
-                'v_y': input[1],
-                'omega': input[2],
-                'theta': input[3],
-                'x': input[4],
-                'y': input[5],
-                'inf': np.inf
-            }
-
-            # evaluate the user specified bounds (which may refer to current data point values like 'x' in 'y >= 0.5 - x')
-            variables = ['v_x', 'v_y', 'omega', 'theta', 'x', 'y']
-            expressions = [v_x, v_y, omega, theta, x, y]
-
-            bounds = {
-                var: (-np.inf, np.inf) if expr is None else safe_bounds(expr, context)
-                for var, expr in zip(variables, expressions)
-            }
-
-            lo = torch.tensor([bounds[var][0] for var in variables])
-            hi = torch.tensor([bounds[var][1] for var in variables])
-
-            return (lo, hi)
-
-        train_constraint, test_constraint = AlsomitraInputRegion(dataset_train, bounds_fn, mean, std), AlsomitraInputRegion(dataset_test, bounds_fn, mean, std)
+        if args.data_set != 'alsomitra':
+            raise ValueError("AlsomitraInputRegion can only be used with alsomitra dataset")
+        
+        # Use centralized factory but call the returned functions with datasets
+        train_factory, test_factory = CONSTRAINT_FACTORIES['AlsomitraInputRegion'](v_x=v_x, v_y=v_y, omega=omega, theta=theta, x=x, y=y)
+        
+        # Handle case where datasets might be Subset from random_split
+        from torch.utils.data import Subset
+        
+        if isinstance(dataset_train, Subset):
+            if isinstance(dataset_train.dataset, AlsomitraDataset):
+                train_dataset_for_constraint = dataset_train.dataset
+            else:
+                raise ValueError(f"Expected AlsomitraDataset in Subset, got {type(dataset_train.dataset)}")
+        elif isinstance(dataset_train, AlsomitraDataset):
+            train_dataset_for_constraint = dataset_train
+        else:
+            raise ValueError(f"Expected AlsomitraDataset, got {type(dataset_train)}")
+            
+        if isinstance(dataset_test, Subset):
+            if isinstance(dataset_test.dataset, AlsomitraDataset):
+                test_dataset_for_constraint = dataset_test.dataset
+            else:
+                raise ValueError(f"Expected AlsomitraDataset in Subset, got {type(dataset_test.dataset)}")
+        elif isinstance(dataset_test, AlsomitraDataset):
+            test_dataset_for_constraint = dataset_test
+        else:
+            raise ValueError(f"Expected AlsomitraDataset, got {type(dataset_test)}")
+        
+        train_constraint = train_factory(train_dataset_for_constraint, mean, std)
+        test_constraint = test_factory(test_dataset_for_constraint, mean, std)
         return train_constraint, test_constraint
     
     input_allowed = {
@@ -416,16 +352,6 @@ def main():
 
     ### Parse output constraint ###
 
-    def CreateStandardRobustnessConstraint(delta: float) -> constraints.StandardRobustnessConstraint:
-        return constraints.StandardRobustnessConstraint(device, delta)
-    
-    def CreateLipschitzRobustnessConstraint(L: float) -> constraints.LipschitzRobustnessConstraint:
-        return constraints.LipschitzRobustnessConstraint(device, L)
-    
-    def CreateAlsomitraOutputConstraint(e_x: tuple[float, float]) -> constraints.AlsomitraOutputConstraint:
-        lo, hi = e_x
-        return constraints.AlsomitraOutputConstraint(device, None if lo is None else AlsomitraDataset.normalise_output(lo).squeeze(), None if hi is None else AlsomitraDataset.normalise_output(hi).squeeze())
-    
     def CreateGroupConstraint(delta: float) -> constraints.GroupConstraint:
         assert args.data_set == 'gtsrb', 'groups are only defined for GTSRB'
 
@@ -441,17 +367,20 @@ def main():
         return constraints.GroupConstraint(device, groups, delta)
 
     output_allowed = {
-        'StandardRobustness': CreateStandardRobustnessConstraint,
-        'LipschitzRobustness': CreateLipschitzRobustnessConstraint,
-        'AlsomitraOutputConstraint': CreateAlsomitraOutputConstraint,
-        'Groups': CreateGroupConstraint,
+        'StandardRobustness': CONSTRAINT_FACTORIES['StandardRobustness'],
+        'LipschitzRobustness': CONSTRAINT_FACTORIES['LipschitzRobustness'],
+        'AlsomitraOutputConstraint': CONSTRAINT_FACTORIES['AlsomitraOutput'],
+        'Groups': CreateGroupConstraint,  # Keep local since it has dataset-specific logic
     }
 
     constraint: constraints.Constraint = safe_call(args.output_constraint, output_allowed)
 
     ### Set up PGD, ADAM, GradNorm ###
 
-    x0, _ = dataset_train[0]
+    # Get a sample from a temporary DataLoader to determine input shape
+    temp_loader = DataLoader(dataset_train, batch_size=1, shuffle=False)
+    x0, _ = next(iter(temp_loader))
+    x0 = x0[0]  # Remove batch dimension
 
     if args.oracle == 'pgd':
         oracle_train = training.PGD(x0, logic, device, args.oracle_steps, args.oracle_restarts, args.pgd_step_size, mean, std)
@@ -469,12 +398,12 @@ def main():
     if args.experiment_name == None:
         if isinstance(constraint, constraints.StandardRobustnessConstraint):
             folder = 'standard-robustness'
-        elif isinstance(constraint, LipschitzRobustnessConstraint):
+        elif isinstance(constraint, constraints.LipschitzRobustnessConstraint):
             folder = 'lipschitz-robustness'
-        elif isinstance(constraint, GroupConstraint):
+        elif isinstance(constraint, constraints.GroupConstraint):
             folder = 'group-constraint'
         else:
-            assert False, f'unknown constraint {constraint}!'
+            raise ValueError(f'unknown constraint {constraint}!')
     else:
         folder = args.experiment_name
 
@@ -549,10 +478,11 @@ def main():
 
     if args.save_onnx:
         x, _, _, _ = next(iter(train_loader))
+        dummy_input = torch.randn(args.batch_size, *x.shape[1:], requires_grad=True).to(device=device)
 
         torch.onnx.export(
             N.eval(),
-            torch.randn(args.batch_size, *x.shape[1:], requires_grad=True).to(device=device),
+            (dummy_input,),  # Wrap in tuple as expected
             model_file_name,
             do_constant_folding=True,
             input_names=['input'],

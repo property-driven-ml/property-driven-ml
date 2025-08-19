@@ -22,9 +22,8 @@ class Constraint(ABC):
     # usage:
     # loss, sat = eval()
     # sat indicates whether the constraint is satisfied or not
-    def eval(self, N: torch.nn.Module, x: torch.Tensor, x_adv: torch.Tensor, y_target: torch.Tensor | None, logic: Logic, reduction: str | None = None, skip_sat: bool = False) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+    def eval(self, N: torch.nn.Module, x: torch.Tensor, x_adv: torch.Tensor, y_target: torch.Tensor | None, logic: Logic, reduction: str | None = None, skip_sat: bool = False) -> tuple[torch.Tensor, torch.Tensor]:
         constraint = self.get_constraint(N, x, x_adv, y_target)
-        loss, sat = None, None
 
         loss = constraint(logic)
         assert not torch.isnan(loss).any()
@@ -34,13 +33,13 @@ class Constraint(ABC):
         elif isinstance(logic, STL):
             loss = torch.clamp(logic.NOT(loss), min=0.)
 
-        if not skip_sat:
+        if skip_sat:
+            # When skipping sat calculation, return a dummy tensor with same shape as loss
+            sat = torch.zeros_like(loss)
+        else:
             sat = constraint(self.boolean_logic).float()
 
-        def agg(value: torch.Tensor | None) -> torch.Tensor | None:
-            if value is None:
-                return None
-
+        def agg(value: torch.Tensor) -> torch.Tensor:
             if reduction == None:
                 return value
             elif reduction == 'mean':
@@ -51,7 +50,7 @@ class Constraint(ABC):
             elif reduction == 'sum':
                 return torch.sum(value)
             else:
-                assert False, f'unsupported reduction {reduction}'
+                raise ValueError(f'Unsupported reduction: {reduction}')
 
         return agg(loss), agg(sat)
 
@@ -86,23 +85,45 @@ class LipschitzRobustnessConstraint(Constraint):
         return lambda l: l.LEQ(diff_y, self.L * diff_x)
     
 class AlsomitraOutputConstraint(Constraint):
-    def __init__(self, device: torch.device, lo: float | torch.Tensor, hi: float | torch.Tensor):
+    def __init__(self, device: torch.device, lo: float | torch.Tensor | None, hi: float | torch.Tensor | None, normalize: bool = True):
         super().__init__(device)
 
-        self.lo = torch.as_tensor(lo, device=device)
-        self.hi = torch.as_tensor(hi, device=device)
+        # Store raw bounds and normalization flag
+        self.lo_raw = lo
+        self.hi_raw = hi
+        self.normalize = normalize
+        
+        # If normalization is disabled (for backwards compatibility), store as tensors directly
+        if not normalize:
+            self.lo = torch.as_tensor(lo, device=device) if lo is not None else None
+            self.hi = torch.as_tensor(hi, device=device) if hi is not None else None
 
     def get_constraint(self, N: torch.nn.Module, _x: None, x_adv: torch.Tensor, _y_target: None) -> Callable[[Logic], torch.Tensor]:
         y_adv = N(x_adv).squeeze()
 
-        if self.lo is None and self.hi is not None:
-            return lambda l: l.LEQ(y_adv, self.hi)
-        elif not self.lo is None and self.hi is not None:
-            return lambda l: l.AND(l.LEQ(self.lo, y_adv), l.LEQ(y_adv, self.hi))
-        elif self.lo is not None and self.hi is None:
-            return lambda l: l.LEQ(self.lo, y_adv)
+        if self.normalize:
+            # Import here to avoid circular imports
+            from examples.alsomitra_dataset import AlsomitraDataset
+            
+            # Normalize bounds at constraint time using class constants
+            lo_normalized = None if self.lo_raw is None else (torch.tensor(self.lo_raw, device=self.device) - AlsomitraDataset.C_out) / AlsomitraDataset.S_out
+            hi_normalized = None if self.hi_raw is None else (torch.tensor(self.hi_raw, device=self.device) - AlsomitraDataset.C_out) / AlsomitraDataset.S_out
+            
+            lo_normalized = lo_normalized.squeeze() if lo_normalized is not None else None
+            hi_normalized = hi_normalized.squeeze() if hi_normalized is not None else None
         else:
-            assert False, 'need to specify either lower or upper (or both) bounds for e_x'
+            # Use pre-normalized bounds
+            lo_normalized = self.lo
+            hi_normalized = self.hi
+
+        if lo_normalized is None and hi_normalized is not None:
+            return lambda l: l.LEQ(y_adv, hi_normalized)
+        elif lo_normalized is not None and hi_normalized is not None:
+            return lambda l: l.AND(l.LEQ(lo_normalized, y_adv), l.LEQ(y_adv, hi_normalized))
+        elif lo_normalized is not None and hi_normalized is None:
+            return lambda l: l.LEQ(lo_normalized, y_adv)
+        else:
+            raise ValueError('need to specify either lower or upper (or both) bounds for e_x') 
 
 class GroupConstraint(Constraint):
     def __init__(self, device: torch.device, indices: list[list[int]], delta: float):
