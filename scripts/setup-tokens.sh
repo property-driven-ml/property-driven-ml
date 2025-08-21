@@ -1,81 +1,62 @@
-#!/bin/bash
-# Token setup helper for TestPyPI and PyPI
+#!/usr/bin/env bash
+set -eo pipefail
 
-echo "🔑 Property-Driven ML Token Setup Helper"
-echo "========================================"
-echo ""
+# Lightweight, non-interactive token installer.
+# Usage:
+#   TESTPYPI_TOKEN=... PYPI_TOKEN=... ./scripts/setup-tokens.sh
+#   ./scripts/setup-tokens.sh --interactive   # prompts for tokens
 
-# Check if project .pypirc template exists
-if [[ ! -f .pypirc ]]; then
-    echo "❌ .pypirc template file not found. Please run from the repository root."
-    exit 1
+ROOT_PYPIRC=".pypirc"
+TARGET_PYPIRC="${HOME}/.pypirc"
+
+interactive=0
+if [[ "${1:-}" == "--interactive" ]]; then
+    interactive=1
 fi
 
-echo "📝 This script will configure your API tokens in ~/.pypirc (where twine expects them)."
-echo ""
+# Backup existing target if present
+if [[ -f "$TARGET_PYPIRC" ]]; then
+    cp "$TARGET_PYPIRC" "${TARGET_PYPIRC}.bak.$(date +%s)"
+fi
 
-# Copy template to home directory if it doesn't exist or ask to overwrite
-if [[ -f ~/.pypirc ]]; then
-    echo "📁 ~/.pypirc already exists."
-    echo "Do you want to overwrite it with the template? (y/N)"
-    read -r overwrite
-    if [[ $overwrite == "y" || $overwrite == "Y" ]]; then
-        cp .pypirc ~/.pypirc
-        echo "✅ Copied template to ~/.pypirc"
-    else
-        echo "📝 Using existing ~/.pypirc file"
-    fi
+# If a repo template exists, use it; otherwise create a minimal template
+if [[ -f "$ROOT_PYPIRC" ]]; then
+    cp "$ROOT_PYPIRC" "$TARGET_PYPIRC"
 else
-    cp .pypirc ~/.pypirc
-    echo "✅ Created ~/.pypirc from template"
+    cat > "$TARGET_PYPIRC" <<'EOF'
+[distutils]
+index-servers =
+        pypi
+        testpypi
+
+[testpypi]
+repository: https://test.pypi.org/legacy/
+username: __token__
+password: YOUR_TESTPYPI_TOKEN_HERE
+
+[pypi]
+username: __token__
+password: YOUR_PYPI_TOKEN_HERE
+EOF
+    chmod 600 "$TARGET_PYPIRC"
 fi
 
-echo ""
-
-# TestPyPI token setup
-echo "🧪 TestPyPI Token Setup:"
-echo "1. Go to https://test.pypi.org/manage/account/token/"
-echo "2. Create a new API token with scope 'Entire account'"
-echo "3. Copy the token (starts with 'pypi-')"
-echo ""
-echo "Enter your TestPyPI token (or press Enter to skip):"
-read -r testpypi_token
-
-if [[ -n "$testpypi_token" ]]; then
-    # Replace the placeholder in ~/.pypirc
-    sed -i "s/YOUR_TESTPYPI_TOKEN_HERE/$testpypi_token/" ~/.pypirc
-    echo "✅ TestPyPI token configured in ~/.pypirc!"
-else
-    echo "⏭️  Skipped TestPyPI token setup"
+if [[ $interactive -eq 1 ]]; then
+    read -r -p "TestPyPI token (leave empty to skip): " ttoken
+    read -r -p "PyPI token (leave empty to skip): " ptoken
+    TESTPYPI_TOKEN="${ttoken:-}" PYPI_TOKEN="${ptoken:-}"
 fi
 
-echo ""
-
-# PyPI token setup
-echo "🚀 PyPI Token Setup:"
-echo "1. Go to https://pypi.org/manage/account/token/"
-echo "2. Create a new API token with scope 'Entire account'"
-echo "3. Copy the token (starts with 'pypi-')"
-echo ""
-echo "Enter your PyPI token (or press Enter to skip):"
-read -r pypi_token
-
-if [[ -n "$pypi_token" ]]; then
-    # Replace the placeholder in ~/.pypirc
-    sed -i "s/YOUR_PYPI_TOKEN_HERE/$pypi_token/" ~/.pypirc
-    echo "✅ PyPI token configured in ~/.pypirc!"
-else
-    echo "⏭️  Skipped PyPI token setup"
+# Replace placeholders from env if provided
+if [[ -n "${TESTPYPI_TOKEN:-}" ]]; then
+    sed -i "s|YOUR_TESTPYPI_TOKEN_HERE|${TESTPYPI_TOKEN}|g" "$TARGET_PYPIRC"
+fi
+if [[ -n "${PYPI_TOKEN:-}" ]]; then
+    sed -i "s|YOUR_PYPI_TOKEN_HERE|${PYPI_TOKEN}|g" "$TARGET_PYPIRC"
 fi
 
-echo ""
-echo "🎉 Setup complete!"
-echo ""
-echo "📁 Configuration saved to: ~/.pypirc"
-echo "🔍 You can check the configuration with: ./scripts/upload.sh status"
-echo ""
-echo "Next steps:"
-echo "1. Build your package: uv build"
-echo "2. Upload to TestPyPI: ./scripts/upload.sh upload-test"
-echo "3. Test installation from TestPyPI"
-echo "4. Upload to PyPI: ./scripts/upload.sh upload-prod"
+echo "wrote: $TARGET_PYPIRC"
+if [[ -f "$TARGET_PYPIRC" ]]; then
+    printf "TestPyPI: %s\n" "$(grep -q 'YOUR_TESTPYPI_TOKEN_HERE' "$TARGET_PYPIRC" && echo 'missing' || echo 'configured')"
+    printf "PyPI: %s\n" "$(grep -q 'YOUR_PYPI_TOKEN_HERE' "$TARGET_PYPIRC" && echo 'missing' || echo 'configured')"
+fi
