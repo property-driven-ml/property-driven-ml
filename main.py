@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from examples.alsomitra_dataset import AlsomitraDataset
 from examples.models import AlsomitraNet
 
-from property_driven_ml.utils.factories import CONSTRAINT_FACTORIES
+from property_driven_ml.utils import CreateEpsilonBall, CreateAlsomitraInputRegion, CreateStandardRobustnessConstraint, CreateLipschitzRobustnessConstraint, CreateAlsomitraOutputConstraint
 from property_driven_ml.datasets import create_dataset
 from property_driven_ml.utils.visualization import save_epoch_images
 
@@ -148,7 +148,6 @@ def main():
 
     ### Set up dataset ###
 
-    # Use centralized dataset creation instead of manual setup
     temp_train_loader, temp_test_loader, N, (mean, std) = create_dataset(
         args.data_set, args.batch_size
     )
@@ -164,12 +163,12 @@ def main():
 
     # Handle input constraint creation using centralized factories
     if args.input_region == "EpsilonBall":
-        train_factory, test_factory = CONSTRAINT_FACTORIES["EpsilonBall"](args.epsilon)
+        train_factory, test_factory = CreateEpsilonBall(args.epsilon)
         wrapper_train = train_factory(dataset_train, mean, std)
         wrapper_test = test_factory(dataset_test, mean, std)
     elif args.input_region == "AlsomitraInputRegion":
         # Use centralized factory for AlsomitraInputRegion
-        train_factory, test_factory = CONSTRAINT_FACTORIES["AlsomitraInputRegion"]()
+        train_factory, test_factory = CreateAlsomitraInputRegion()
 
         # Handle case where datasets might be Subset from random_split
         from torch.utils.data import Subset
@@ -238,9 +237,9 @@ def main():
         return constraints.GroupConstraint(device, groups, delta)
 
     output_allowed = {
-        "StandardRobustness": CONSTRAINT_FACTORIES["StandardRobustness"],
-        "LipschitzRobustness": CONSTRAINT_FACTORIES["LipschitzRobustness"],
-        "AlsomitraOutputConstraint": CONSTRAINT_FACTORIES["AlsomitraOutput"],
+        "StandardRobustness": CreateStandardRobustnessConstraint,
+        "LipschitzRobustness": CreateLipschitzRobustnessConstraint,
+        "AlsomitraOutputConstraint": CreateAlsomitraOutputConstraint,
         "Groups": CreateGroupConstraint,  # Keep local since it has dataset-specific logic
     }
 

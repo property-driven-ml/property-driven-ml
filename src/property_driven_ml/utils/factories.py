@@ -118,22 +118,3 @@ def CreateAlsomitraOutputConstraint(
 
     # Pass raw values and enable normalization - constraint will handle it at runtime
     return constraints.AlsomitraOutputConstraint(device, lo, hi, normalize=True)
-
-
-def CreateGroupConstraint(delta: float) -> constraints.GroupConstraint:
-    """Create group fairness constraint."""
-    device = torch.device("cpu")  # Will be moved to correct device later
-    # Note: This is a placeholder - actual groups would need to be provided
-    groups: list[list[int]] = []  # Empty list of groups for now
-    return constraints.GroupConstraint(device, groups, delta)
-
-
-# Registry of allowed constraint factory functions
-CONSTRAINT_FACTORIES = {
-    "EpsilonBall": CreateEpsilonBall,
-    "AlsomitraInputRegion": CreateAlsomitraInputRegion,
-    "StandardRobustness": CreateStandardRobustnessConstraint,
-    "LipschitzRobustness": CreateLipschitzRobustnessConstraint,
-    "AlsomitraOutput": CreateAlsomitraOutputConstraint,
-    "GroupConstraint": CreateGroupConstraint,
-}
