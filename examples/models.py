@@ -2,14 +2,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# based on https://github.com/pytorch/examples/blob/main/mnist/main.py 
+
+# based on https://github.com/pytorch/examples/blob/main/mnist/main.py
 class MnistNet(nn.Module):
     def __init__(self):
         super(MnistNet, self).__init__()
         self.conv1 = nn.Conv2d(1, 16, 3, 1)
         self.conv2 = nn.Conv2d(16, 32, 3, 1)
-        self.dropout1 = nn.Dropout(.25)
-        self.dropout2 = nn.Dropout(.5)
+        self.dropout1 = nn.Dropout(0.25)
+        self.dropout2 = nn.Dropout(0.5)
         self.fc1 = nn.Linear(4608, 64)
         self.fc2 = nn.Linear(64, 10)
 
@@ -42,7 +43,6 @@ class AlsomitraNet(nn.Module):
         x = F.relu(x)
         x = self.fc3(x)
         return x
-    
 
 
 # based on https://github.com/poojahira/gtsrb-pytorch/blob/master/model.py
@@ -67,19 +67,19 @@ class GTSRBNet(nn.Module):
             nn.ReLU(True),
             nn.Conv2d(4, 8, kernel_size=3),
             nn.MaxPool2d(2, stride=2),
-            nn.ReLU(True)
+            nn.ReLU(True),
         )
 
         # Regressor for the 3 * 2 affine matrix
         self.fc_loc = nn.Sequential(
-            nn.Linear(8 * 6 * 6, 16),
-            nn.ReLU(True),
-            nn.Linear(16, 3 * 2)
+            nn.Linear(8 * 6 * 6, 16), nn.ReLU(True), nn.Linear(16, 3 * 2)
         )
 
         # Initialize the weights/bias with identity transformation
         self.fc_loc[2].weight.data.zero_()
-        self.fc_loc[2].bias.data.copy_(torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float))
+        self.fc_loc[2].bias.data.copy_(
+            torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float)
+        )
 
     # Spatial transformer network forward function
     def stn(self, x):
@@ -96,11 +96,11 @@ class GTSRBNet(nn.Module):
         x = self.stn(x)
 
         # Perform forward pass
-        x = self.bn1(F.max_pool2d(F.leaky_relu(self.conv1(x)),2))
+        x = self.bn1(F.max_pool2d(F.leaky_relu(self.conv1(x)), 2))
         x = self.conv_drop(x)
-        x = self.bn2(F.max_pool2d(F.leaky_relu(self.conv2(x)),2))
+        x = self.bn2(F.max_pool2d(F.leaky_relu(self.conv2(x)), 2))
         x = self.conv_drop(x)
-        x = self.bn3(F.max_pool2d(F.leaky_relu(self.conv3(x)),2))
+        x = self.bn3(F.max_pool2d(F.leaky_relu(self.conv3(x)), 2))
         x = self.conv_drop(x)
         x = x.view(-1, 128 * 2 * 2)
         x = F.relu(self.fc1(x))

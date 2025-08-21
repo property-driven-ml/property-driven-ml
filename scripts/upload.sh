@@ -61,7 +61,7 @@ case "$1" in
     "upload-test")
         echo ""
         echo "🧪 Uploading to TestPyPI..."
-        
+
         # Check if ~/.pypirc exists and has testpypi token
         if [[ ! -f ~/.pypirc ]]; then
             echo "❌ ~/.pypirc file not found. Copying local .pypirc to home directory..."
@@ -73,12 +73,12 @@ case "$1" in
                 exit 1
             fi
         fi
-        
+
         if grep -q "YOUR_TESTPYPI_TOKEN_HERE" ~/.pypirc; then
             echo "❌ TestPyPI token not configured. Please run ./scripts/setup-tokens.sh first."
             exit 1
         fi
-        
+
         echo "✅ Using configured TestPyPI token from ~/.pypirc"
         uv run twine upload --repository testpypi dist/*
         echo ""
@@ -92,7 +92,7 @@ case "$1" in
     "upload-prod")
         echo ""
         echo "🚀 Uploading to PyPI (PRODUCTION)..."
-        
+
         # Check if ~/.pypirc exists and has pypi token
         if [[ ! -f ~/.pypirc ]]; then
             echo "❌ ~/.pypirc file not found. Copying local .pypirc to home directory..."
@@ -104,12 +104,12 @@ case "$1" in
                 exit 1
             fi
         fi
-        
+
         if grep -q "YOUR_PYPI_TOKEN_HERE" ~/.pypirc; then
             echo "❌ PyPI token not configured. Please run ./scripts/setup-tokens.sh first."
             exit 1
         fi
-        
+
         echo "✅ Using configured PyPI token from ~/.pypirc"
         echo ""
         echo "⚠️  This will upload to the real PyPI! Are you sure? (y/N)"
@@ -143,19 +143,19 @@ case "$1" in
             echo "📝 Run ./scripts/setup-tokens.sh to configure tokens"
         else
             echo "✅ ~/.pypirc file exists"
-            
+
             if grep -q "YOUR_TESTPYPI_TOKEN_HERE" ~/.pypirc; then
                 echo "❌ TestPyPI token: Not configured"
             else
                 echo "✅ TestPyPI token: Configured"
             fi
-            
+
             if grep -q "YOUR_PYPI_TOKEN_HERE" ~/.pypirc; then
                 echo "❌ PyPI token: Not configured"
             else
                 echo "✅ PyPI token: Configured"
             fi
-            
+
             echo ""
             echo "📝 To update tokens, run: ./scripts/setup-tokens.sh"
         fi

@@ -11,7 +11,4 @@ from .safe_eval import safe_call, safe_bounds
 # Note: CONSTRAINT_FACTORIES is not imported here to avoid circular imports
 # Import it directly from .factories when needed
 
-__all__ = [
-    "safe_div", "safe_pow", "safe_zero", "maybe",
-    "safe_call", "safe_bounds"
-]
+__all__ = ["safe_div", "safe_pow", "safe_zero", "maybe", "safe_call", "safe_bounds"]

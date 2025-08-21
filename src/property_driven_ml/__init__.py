@@ -21,6 +21,6 @@ __author__ = "Thomas Flinkow"
 __all__ = [
     # Submodules
     "logics",
-    "constraints", 
-    "training"
+    "constraints",
+    "training",
 ]

@@ -76,5 +76,6 @@ torchvision = { index = "pytorch-cu121" }
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.3.0",
     "twine>=6.1.0",
 ]

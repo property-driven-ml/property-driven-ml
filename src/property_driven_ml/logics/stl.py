@@ -3,19 +3,58 @@ import torch
 from .logic import Logic
 
 from ..utils import safe_div
-    
+
+
 class STL(Logic):
-    def __init__(self, k=1.):
-        super().__init__('STL')
+    """Signal Temporal Logic implementation for real-valued constraints.
+
+    Provides smooth approximations of logical operations using
+    exponential functions, enabling gradient-based optimization
+    while preserving logical semantics.
+
+    Args:
+        k: Smoothness parameter (higher values give sharper approximations).
+    """
+
+    def __init__(self, k=1.0):
+        super().__init__("STL")
         self.k = k
 
     def LEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """STL less than or equal operation.
+
+        Args:
+            x: Left-hand side tensor.
+            y: Right-hand side tensor.
+
+        Returns:
+            Real-valued difference y - x (positive when x <= y).
+        """
         return y - x
 
     def NOT(self, x: torch.Tensor) -> torch.Tensor:
+        """STL logical negation.
+
+        Args:
+            x: Tensor to negate.
+
+        Returns:
+            Negated tensor -x.
+        """
         return -x
-    
+
     def AND(self, *xs) -> torch.Tensor:
+        """STL smooth minimum approximation for conjunction.
+
+        Uses exponential smoothing to approximate the minimum function
+        in a differentiable way, enabling gradient-based optimization.
+
+        Args:
+            *xs: Variable number of tensors to combine with AND.
+
+        Returns:
+            Smooth minimum approximation of input tensors.
+        """
         xs = torch.stack(xs)
         x_min, _ = torch.min(xs, dim=0)
         rel = safe_div(xs - x_min, x_min)

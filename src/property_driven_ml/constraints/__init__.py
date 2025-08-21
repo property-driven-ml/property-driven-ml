@@ -6,19 +6,23 @@ machine learning models should satisfy.
 """
 
 from .constraints import (
-    Constraint, 
-    StandardRobustnessConstraint, 
+    Constraint,
+    StandardRobustnessConstraint,
     LipschitzRobustnessConstraint,
     AlsomitraOutputConstraint,
-    GroupConstraint
+    GroupConstraint,
 )
-from .bounded_datasets import EpsilonBall
+from .bounded_datasets import EpsilonBall, BoundedDataset, AlsomitraInputRegion
+from ..datasets.base import SizedDataset
 
 __all__ = [
     "Constraint",
     "StandardRobustnessConstraint",
-    "LipschitzRobustnessConstraint", 
+    "LipschitzRobustnessConstraint",
     "AlsomitraOutputConstraint",
     "GroupConstraint",
-    "EpsilonBall"
+    "EpsilonBall",
+    "BoundedDataset",
+    "AlsomitraInputRegion",
+    "SizedDataset",
 ]
