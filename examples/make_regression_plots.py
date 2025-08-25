@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch.utils.data import random_split
 
-from alsomitra_dataset import AlsomitraDataset
+from datasets import AlsomitraDataset
 
 import onnxruntime as ort
 
@@ -43,10 +43,10 @@ for file_name in ["Baseline", "DL2", "GD"]:
 
         results.append(
             {
-                "predicted": AlsomitraDataset.denormalise_output(
-                    outputs[0][0][0]
+                "predicted": dataset.denormalise_output(
+                    outputs[0][0][0]  # type: ignore
                 ).item(),
-                "target": AlsomitraDataset.denormalise_output(target).item(),
+                "target": dataset.denormalise_output(target).item(),
             }
         )
 

@@ -2,15 +2,10 @@ import torch
 
 from typing import Callable
 
-from ..datasets.base import SizedDataset
+from .base import SizedDataset, NormalizedDataset
 
 
 # Import the protocol after the module structure is established
-def _get_alsomitra_protocol():
-    """Lazy import to avoid circular dependencies."""
-    from examples.alsomitra_dataset import AlsomitraDatasetLike
-
-    return AlsomitraDatasetLike
 
 
 class BoundedDataset(torch.utils.data.Dataset):
@@ -146,6 +141,8 @@ class AlsomitraInputRegion(BoundedDataset):
     Provides input bounds specific to the Alsomitra dataset using
     a bounds function that considers the domain constraints.
 
+    Look at examples in GitHub for details.
+
     Args:
         dataset: Alsomitra dataset instance.
         bounds_fn: Function that computes bounds given input tensor.
@@ -155,7 +152,7 @@ class AlsomitraInputRegion(BoundedDataset):
 
     def __init__(
         self,
-        dataset,  # AlsomitraDatasetLike - avoiding direct import for circular dependency
+        dataset: NormalizedDataset,
         bounds_fn: Callable[[torch.Tensor], tuple[torch.Tensor, torch.Tensor]],
         mean: torch.Tensor | tuple[float, ...] = (0.0,),
         std: torch.Tensor | tuple[float, ...] = (1.0,),

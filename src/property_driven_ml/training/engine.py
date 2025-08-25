@@ -8,7 +8,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from examples.alsomitra_dataset import AlsomitraDataset
 import property_driven_ml.logics as logics
 import property_driven_ml.constraints as constraints
 import property_driven_ml.training as training
@@ -27,6 +26,7 @@ def train(
     constraint: constraints.Constraint,
     with_dl: bool,
     is_classification: bool,
+    denorm_scale: None | torch.Tensor = None,
 ) -> EpochInfoTrain:
     """Train the model for one epoch with property-driven learning.
 
@@ -41,6 +41,7 @@ def train(
         constraint: Constraint to enforce during training.
         with_dl: Whether to use property-driven learning.
         is_classification: Whether this is a classification task.
+        denorm_scale: Denormalization coefficient for output images and loss.
 
     Returns:
         Training epoch information including metrics and sample images.
@@ -79,7 +80,7 @@ def train(
             loss = F.mse_loss(y, y_target)
             rmse = torch.sqrt(loss)
             rmse = (
-                AlsomitraDataset.S_out * rmse.cpu()
+                denorm_scale * rmse.cpu()
             ).squeeze()  # TODO: hmm, explain denormalise
             avg_pred_metric += rmse
 
@@ -132,9 +133,9 @@ def train(
         constr_loss=avg_constr_loss.item() / len(train_loader),
         pred_loss_weight=grad_norm.weights[0].item(),
         constr_loss_weight=grad_norm.weights[1].item(),
-        input_img=images["input"],
-        adv_img=images["adv"],
-        random_img=images["random"],
+        input_img=images["input"],  # type: ignore
+        adv_img=images["adv"],  # type: ignore
+        random_img=images["random"],  # type: ignore
     )
 
 
@@ -146,6 +147,7 @@ def test(
     logic: logics.Logic,
     constraint: constraints.Constraint,
     is_classification: bool,
+    denorm_scale: None | torch.Tensor = None,
 ) -> EpochInfoTest:
     """Evaluate the model on test data.
 
@@ -157,6 +159,7 @@ def test(
         logic: Logic system for constraint evaluation.
         constraint: Constraint to evaluate.
         is_classification: Whether this is a classification task.
+        denorm_scale: Denormalization coefficient for output images and loss.
 
     Returns:
         Test epoch information including metrics and sample images.
@@ -226,16 +229,16 @@ def test(
         pred_acc = correct.item() / total_samples
     else:
         rmse = torch.sqrt(avg_pred_loss / total_samples)
-        rmse = (AlsomitraDataset.S_out * rmse.cpu()).item()
+        rmse = (denorm_scale * rmse.cpu()).item()
 
     return EpochInfoTest(
-        pred_metric=pred_acc if is_classification else rmse,
+        pred_metric=pred_acc if is_classification else rmse,  # type: ignore
         constr_acc=constr_acc.item() / total_samples,
         constr_sec=constr_sec.item() / total_samples,
         pred_loss=avg_pred_loss.item() / total_samples,
         random_loss=avg_random_loss.item() / total_samples,
         constr_loss=avg_constr_loss.item() / total_samples,
-        input_img=images["input"],
-        adv_img=images["adv"],
-        random_img=images["random"],
+        input_img=images["input"],  # type: ignore
+        adv_img=images["adv"],  # type: ignore
+        random_img=images["random"],  # type: ignore
     )

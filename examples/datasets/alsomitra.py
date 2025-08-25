@@ -1,20 +1,21 @@
+"""
+Alsomitra dataset creation utilities.
+
+This module provides functions to create and load Alsomitra datasets
+for dynamical system modeling tasks.
+"""
+
 import torch
+from torch.utils.data import DataLoader, random_split
+from typing import Tuple
+
+from examples.models import AlsomitraNet
+from property_driven_ml.constraints.base import NormalizedDataset
 
 import pandas as pd
 
-from typing import Protocol
 
-
-class AlsomitraDatasetLike(Protocol):
-    """Protocol for datasets that support Alsomitra-style normalization."""
-
-    def __getitem__(self, index: int) -> tuple: ...
-    def __len__(self) -> int: ...
-    def normalise_input(self, x: torch.Tensor) -> torch.Tensor: ...
-    def denormalise_input(self, x: torch.Tensor) -> torch.Tensor: ...
-
-
-class AlsomitraDataset(torch.utils.data.Dataset):
+class AlsomitraDataset(torch.utils.data.Dataset, NormalizedDataset):
     def __init__(self, csv_file):
         data = pd.read_csv(csv_file, header=None)
 
@@ -55,3 +56,34 @@ class AlsomitraDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         return self.inputs[idx], self.outputs[idx]
+
+
+def create_alsomitra_datasets(
+    batch_size: int,
+) -> Tuple[
+    DataLoader, DataLoader, torch.nn.Module, Tuple[Tuple[float, ...], Tuple[float, ...]]
+]:
+    """
+    Create Alsomitra train and test data loaders.
+
+    Args:
+        batch_size: Size of training batches
+
+    Returns:
+        Tuple of (train_loader, test_loader, model, (mean, std))
+    """
+    dataset = AlsomitraDataset("examples/alsomitra_data_680.csv")
+    train_size = int(0.8 * len(dataset))
+    test_size = len(dataset) - train_size
+
+    dataset_train, dataset_test = random_split(
+        dataset, [train_size, test_size], generator=torch.Generator().manual_seed(42)
+    )
+
+    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(dataset_test, batch_size=batch_size, shuffle=False)
+
+    model = AlsomitraNet()
+    mean, std = (0.0,), (1.0,)  # No normalization needed for Alsomitra
+
+    return train_loader, test_loader, model, (mean, std)

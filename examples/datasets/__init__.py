@@ -9,9 +9,13 @@ from typing import Tuple, Dict
 import torch
 from torch.utils.data import DataLoader
 
-from .base import DatasetCreator, SizedDataset, validate_dataset_result
+from property_driven_ml.constraints.base import (
+    DatasetCreator,
+    SizedDataset,
+    validate_dataset_result,
+)
 from .mnist import create_mnist_datasets
-from .alsomitra import create_alsomitra_datasets
+from .alsomitra import create_alsomitra_datasets, AlsomitraDataset
 from .gtsrb import create_gtsrb_datasets
 
 
@@ -94,4 +98,6 @@ __all__ = [
     "create_mnist_datasets",
     "create_alsomitra_datasets",
     "create_gtsrb_datasets",
+    "AlsomitraDataset",
+    "AlsomitraDatasetLike",
 ]

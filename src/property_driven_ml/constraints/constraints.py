@@ -121,7 +121,7 @@ class StandardRobustnessConstraint(Constraint):
         )
         self.delta = torch.as_tensor(delta, device=self.device)
 
-    def get_constraint(
+    def get_constraint(  # type: ignore
         self, N: torch.nn.Module, x: torch.Tensor, x_adv: torch.Tensor, _y_target: None
     ) -> Callable[[Logic], torch.Tensor]:
         """Get robustness constraint for probability difference bounds.
@@ -161,7 +161,7 @@ class LipschitzRobustnessConstraint(Constraint):
 
         self.L = torch.as_tensor(L, device=device)
 
-    def get_constraint(
+    def get_constraint(  # type: ignore
         self, N: torch.nn.Module, x: torch.Tensor, x_adv: torch.Tensor, _y_target: None
     ) -> Callable[[Logic], torch.Tensor]:
         """Get Lipschitz constraint relating input and output changes.
@@ -216,8 +216,14 @@ class AlsomitraOutputConstraint(Constraint):
             self.lo = torch.as_tensor(lo, device=device) if lo is not None else None
             self.hi = torch.as_tensor(hi, device=device) if hi is not None else None
 
-    def get_constraint(
-        self, N: torch.nn.Module, _x: None, x_adv: torch.Tensor, _y_target: None
+    def get_constraint(  # type: ignore
+        self,
+        N: torch.nn.Module,
+        _x: None,
+        x_adv: torch.Tensor,
+        _y_target: None,
+        scale: torch.Tensor | None = None,
+        centre: torch.Tensor | None = None,
     ) -> Callable[[Logic], torch.Tensor]:
         """Get output bounds constraint for adversarial inputs.
 
@@ -226,6 +232,8 @@ class AlsomitraOutputConstraint(Constraint):
             _x: Unused original input tensor.
             x_adv: Adversarial input tensor.
             _y_target: Unused target tensor.
+            scale: Optional scaling factor for normalization.
+            centre: Optional centre point for normalization.
 
         Returns:
             Function that constrains outputs to specified bounds.
@@ -233,27 +241,16 @@ class AlsomitraOutputConstraint(Constraint):
         y_adv = N(x_adv).squeeze()
 
         if self.normalize:
-            # Import here to avoid circular imports
-            from examples.alsomitra_dataset import AlsomitraDataset
-
             # Normalize bounds at constraint time using class constants
             lo_normalized = (
                 None
                 if self.lo_raw is None
-                else (
-                    torch.tensor(self.lo_raw, device=self.device)
-                    - AlsomitraDataset.C_out
-                )
-                / AlsomitraDataset.S_out
+                else (torch.tensor(self.lo_raw, device=self.device) - centre) / scale
             )
             hi_normalized = (
                 None
                 if self.hi_raw is None
-                else (
-                    torch.tensor(self.hi_raw, device=self.device)
-                    - AlsomitraDataset.C_out
-                )
-                / AlsomitraDataset.S_out
+                else (torch.tensor(self.hi_raw, device=self.device) - centre) / scale
             )
 
             lo_normalized = (
@@ -303,7 +300,7 @@ class GroupConstraint(Constraint):
         )
         self.delta = torch.as_tensor(delta, device=self.device)
 
-    def get_constraint(
+    def get_constraint(  # type: ignore
         self, N: torch.nn.Module, _x: None, x_adv: torch.Tensor, _y_target: None
     ) -> Callable[[Logic], torch.Tensor]:
         """Get group consistency constraint for adversarial inputs.

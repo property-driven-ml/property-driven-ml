@@ -13,7 +13,7 @@ from .constraints import (
     GroupConstraint,
 )
 from .bounded_datasets import EpsilonBall, BoundedDataset, AlsomitraInputRegion
-from ..datasets.base import SizedDataset
+from .base import SizedDataset
 
 __all__ = [
     "Constraint",

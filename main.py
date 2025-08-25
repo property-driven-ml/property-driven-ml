@@ -11,7 +11,7 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from examples.alsomitra_dataset import AlsomitraDataset
+from examples.datasets.alsomitra import AlsomitraDataset
 from examples.models import AlsomitraNet
 
 from property_driven_ml.utils import (
@@ -21,7 +21,7 @@ from property_driven_ml.utils import (
     CreateLipschitzRobustnessConstraint,
     CreateAlsomitraOutputConstraint,
 )
-from property_driven_ml.datasets import create_dataset
+from examples.datasets import create_dataset
 from property_driven_ml.utils.visualization import save_epoch_images
 
 # Import from the property_driven_ml package
@@ -368,22 +368,37 @@ def main():
 
             if epoch > 0:
                 with_dl = (epoch > args.delay) and (not is_baseline)
-                train_info = train(
-                    N,
-                    device,
-                    train_loader,
-                    optimizer,
-                    oracle_train,
-                    grad_norm,
-                    logic,
-                    constraint,
-                    with_dl,
-                    is_classification=not isinstance(N, AlsomitraNet),
-                )  # TODO: better check?
+                if not isinstance(N, AlsomitraNet):
+                    train_info = train(
+                        N,
+                        device,
+                        train_loader,
+                        optimizer,
+                        oracle_train,
+                        grad_norm,
+                        logic,
+                        constraint,
+                        with_dl,
+                        is_classification=True,
+                    )  # TODO: better check?
+                else:
+                    train_info = train(
+                        N,
+                        device,
+                        train_loader,
+                        optimizer,
+                        oracle_train,
+                        grad_norm,
+                        logic,
+                        constraint,
+                        with_dl,
+                        is_classification=False,
+                        denorm_scale=AlsomitraDataset.S_out,
+                    )
                 train_time = time.time() - start
 
                 if args.save_imgs:
-                    save_epoch_images(train_info, epoch, save_dir, mean, std)
+                    save_epoch_images(train_info, epoch, save_dir, mean, std)  # type: ignore
 
                 print(
                     f"Epoch {epoch}/{args.epochs}\t {args.output_constraint if args.experiment_name is None else args.experiment_name} on {args.data_set}, {logic.name if not is_baseline else 'Baseline'} \t TRAIN \t P-Metric: {train_info.pred_metric:.6f} \t C-Acc: {train_info.constr_acc:.2f}\t C-Sec: {train_info.constr_sec:.2f}\t P-Loss: {train_info.pred_loss:.2f}\t R-Loss: {train_info.random_loss:.2f}\t DL-Loss: {train_info.constr_loss:.2f}\t Time (Train) [s]: {train_time:.1f}"
@@ -406,7 +421,7 @@ def main():
             test_time = time.time() - start - train_time
 
             if args.save_imgs:
-                save_epoch_images(test_info, epoch, save_dir, mean, std)
+                save_epoch_images(test_info, epoch, save_dir, mean, std)  # type: ignore
 
             writer.writerow(
                 [
