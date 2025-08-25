@@ -1,6 +1,6 @@
 [project]
 name = "property-driven-ml"
-version = "0.1.1"
+version = "0.2.2"
 description = "A general framework for property-driven machine learning with logical constraints"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -33,7 +33,7 @@ dependencies = [
     "onnxruntime>=1.22.1",
     "pandas>=2.3.1",
     "torch>=2.5.1",
-    "torchvision>=0.2.0",
+    "torchvision>=0.17.0",
 ]
 
 [project.urls]
@@ -76,5 +76,6 @@ torchvision = { index = "pytorch-cu121" }
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.3.0",
     "twine>=6.1.0",
 ]

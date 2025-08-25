@@ -63,7 +63,7 @@ pip install .
 - PyTorch 2.5.1+
 - CUDA support (optional, for GPU acceleration)
 
-**Note**: 
+**Note**:
 - For PyPI installation: Use standard `python` commands
 - For local development with uv: Use `uv run python` to run scripts with the managed environment
 

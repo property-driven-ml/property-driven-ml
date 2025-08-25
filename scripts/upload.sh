@@ -1,168 +1,115 @@
-#!/bin/bash
-# Upload script for TestPyPI and PyPI distribution
+#!/usr/bin/env bash
+set -eo pipefail
 
-set -e
+# Minimal upload helper for TestPyPI and PyPI.
+# Usage:
+#   ./scripts/upload.sh upload-test
+#   ./scripts/upload.sh upload-prod     # requires UPLOAD_CONFIRM=1 or --yes
+#   ./scripts/upload.sh check
+#   ./scripts/upload.sh status
 
-echo "🚀 Property-Driven ML Distribution Helper"
-echo "========================================="
-
-# Check if we're in the right directory
-if [[ ! -f pyproject.toml ]]; then
-    echo "❌ Error: pyproject.toml not found. Please run from the repository root."
+ROOT="$(pwd)"
+if [[ ! -f "$ROOT/pyproject.toml" ]]; then
+    echo "error: run from project root (pyproject.toml missing)" >&2
     exit 1
 fi
 
-# Function to check if a command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
+ensure_pypirc() {
+    # If ~/.pypirc exists, nothing to do
+    if [[ -f "$HOME/.pypirc" ]]; then
+        return 0
+    fi
+
+    # Prefer repo template if present
+    if [[ -f "$ROOT/.pypirc" ]]; then
+        cp "$ROOT/.pypirc" "$HOME/.pypirc"
+        return 0
+    fi
+
+    # Otherwise try to create a minimal ~/.pypirc from env tokens
+    if [[ -n "${TESTPYPI_TOKEN:-}" || -n "${PYPI_TOKEN:-}" ]]; then
+        cat > "$HOME/.pypirc" <<EOF
+[distutils]
+index-servers =
+    testpypi
+    pypi
+
+[testpypi]
+repository: https://test.pypi.org/legacy/
+username: __token__
+password: ${TESTPYPI_TOKEN:-YOUR_TESTPYPI_TOKEN_HERE}
+
+[pypi]
+username: __token__
+password: ${PYPI_TOKEN:-YOUR_PYPI_TOKEN_HERE}
+EOF
+        chmod 600 "$HOME/.pypirc"
+        return 0
+    fi
+
+    # No template and no env tokens — leave missing and let caller handle error
+    return 1
 }
 
-# Check for required tools
-echo "🔍 Checking requirements..."
-if ! command_exists uv; then
-    echo "❌ uv is required but not installed. Please install it first:"
-    echo "   curl -LsSf https://astral.sh/uv/install.sh | sh"
-    exit 1
-fi
+has_token_placeholder() {
+    local placeholder="$1"
+    grep -q "$placeholder" "$HOME/.pypirc" 2>/dev/null && return 0 || return 1
+}
 
-if ! command_exists twine; then
-    echo "📦 Installing twine for package uploads..."
-    uv add --dev twine
-fi
+build() {
+    rm -rf dist/ build/ src/*.egg-info/ || true
+    uv build
+}
 
-echo "✅ All requirements satisfied"
-
-# Clean and build
-echo ""
-echo "🧹 Cleaning previous builds..."
-rm -rf dist/ build/ src/*.egg-info/
-
-echo "🔨 Building package..."
-uv build
-
-echo "✅ Build completed successfully"
-
-# Display options
-echo ""
-echo "📋 Available commands:"
-echo "1. upload-test    - Upload to TestPyPI"
-echo "2. upload-prod    - Upload to PyPI (production)"
-echo "3. check          - Check distribution files"
-echo "4. status         - Check token configuration status"
-
-if [[ $# -eq 0 ]]; then
-    echo ""
-    echo "Usage: $0 [command]"
-    echo "Example: $0 upload-test"
-    exit 0
-fi
-
-case "$1" in
-    "upload-test")
-        echo ""
-        echo "🧪 Uploading to TestPyPI..."
-        
-        # Check if ~/.pypirc exists and has testpypi token
-        if [[ ! -f ~/.pypirc ]]; then
-            echo "❌ ~/.pypirc file not found. Copying local .pypirc to home directory..."
-            if [[ -f .pypirc ]]; then
-                cp .pypirc ~/.pypirc
-                echo "✅ Copied .pypirc to home directory"
-            else
-                echo "❌ No .pypirc file found. Please run ./scripts/setup-tokens.sh first."
+case "${1:-}" in
+    upload-test)
+            if ! ensure_pypirc; then
+                echo "error: ~/.pypirc missing and could not be created; run ./scripts/setup-tokens.sh or set TESTPYPI_TOKEN" >&2
                 exit 1
             fi
-        fi
-        
-        if grep -q "YOUR_TESTPYPI_TOKEN_HERE" ~/.pypirc; then
-            echo "❌ TestPyPI token not configured. Please run ./scripts/setup-tokens.sh first."
+            if has_token_placeholder 'YOUR_TESTPYPI_TOKEN_HERE'; then
+            echo "error: TestPyPI token not configured in ~/.pypirc" >&2
+            echo "Run: TESTPYPI_TOKEN=... ./scripts/setup-tokens.sh" >&2
             exit 1
         fi
-        
-        echo "✅ Using configured TestPyPI token from ~/.pypirc"
+        build
         uv run twine upload --repository testpypi dist/*
-        echo ""
-        echo "✅ Upload to TestPyPI completed!"
-        echo "📝 To test the installation:"
-        echo "   # Using pip:"
-        echo "   pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ property-driven-ml"
-        echo "   # Using uv:"
-        echo "   uv pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ property-driven-ml"
         ;;
-    "upload-prod")
-        echo ""
-        echo "🚀 Uploading to PyPI (PRODUCTION)..."
-        
-        # Check if ~/.pypirc exists and has pypi token
-        if [[ ! -f ~/.pypirc ]]; then
-            echo "❌ ~/.pypirc file not found. Copying local .pypirc to home directory..."
-            if [[ -f .pypirc ]]; then
-                cp .pypirc ~/.pypirc
-                echo "✅ Copied .pypirc to home directory"
-            else
-                echo "❌ No .pypirc file found. Please run ./scripts/setup-tokens.sh first."
+
+    upload-prod)
+            if ! ensure_pypirc; then
+                echo "error: ~/.pypirc missing and could not be created; run ./scripts/setup-tokens.sh or set PYPI_TOKEN" >&2
                 exit 1
             fi
+            if has_token_placeholder 'YOUR_PYPI_TOKEN_HERE'; then
+                echo "error: PyPI token not configured in ~/.pypirc" >&2
+                echo "Run: PYPI_TOKEN=... ./scripts/setup-tokens.sh" >&2
+                exit 1
+            fi
+        if [[ "$UPLOAD_CONFIRM" != "1" && "$2" != "--yes" && "$3" != "--yes" ]]; then
+            echo "This will upload to PyPI. Set UPLOAD_CONFIRM=1 or pass --yes to proceed." >&2
+            exit 2
         fi
-        
-        if grep -q "YOUR_PYPI_TOKEN_HERE" ~/.pypirc; then
-            echo "❌ PyPI token not configured. Please run ./scripts/setup-tokens.sh first."
-            exit 1
-        fi
-        
-        echo "✅ Using configured PyPI token from ~/.pypirc"
-        echo ""
-        echo "⚠️  This will upload to the real PyPI! Are you sure? (y/N)"
-        read -r confirm
-        if [[ $confirm == "y" || $confirm == "Y" ]]; then
-            uv run twine upload dist/*
-            echo ""
-            echo "✅ Upload to PyPI completed!"
-            echo "📝 Your package is now available:"
-            echo "   # Using pip:"
-            echo "   pip install property-driven-ml"
-            echo "   # Using uv:"
-            echo "   uv pip install property-driven-ml"
-        else
-            echo "❌ Upload cancelled"
-        fi
+        build
+        uv run twine upload dist/*
         ;;
-    "check")
-        echo ""
-        echo "🔍 Checking distribution files..."
+
+    check)
         uv run twine check dist/*
-        echo ""
-        echo "📊 Distribution files:"
-        ls -lh dist/
+        ls -lh dist/ || true
         ;;
-    "status")
-        echo ""
-        echo "🔍 Token Configuration Status:"
-        if [[ ! -f ~/.pypirc ]]; then
-            echo "❌ ~/.pypirc file not found"
-            echo "📝 Run ./scripts/setup-tokens.sh to configure tokens"
-        else
-            echo "✅ ~/.pypirc file exists"
-            
-            if grep -q "YOUR_TESTPYPI_TOKEN_HERE" ~/.pypirc; then
-                echo "❌ TestPyPI token: Not configured"
-            else
-                echo "✅ TestPyPI token: Configured"
-            fi
-            
-            if grep -q "YOUR_PYPI_TOKEN_HERE" ~/.pypirc; then
-                echo "❌ PyPI token: Not configured"
-            else
-                echo "✅ PyPI token: Configured"
-            fi
-            
-            echo ""
-            echo "📝 To update tokens, run: ./scripts/setup-tokens.sh"
+
+    status)
+        if [[ ! -f "$HOME/.pypirc" ]]; then
+            echo "~/.pypirc: missing"
+            exit 0
         fi
+        printf "TestPyPI: %s\n" "$(grep -q 'YOUR_TESTPYPI_TOKEN_HERE' "$HOME/.pypirc" && echo 'missing' || echo 'configured')"
+        printf "PyPI: %s\n" "$(grep -q 'YOUR_PYPI_TOKEN_HERE' "$HOME/.pypirc" && echo 'missing' || echo 'configured')"
         ;;
+
     *)
-        echo "❌ Unknown command: $1"
-        echo "Available commands: upload-test, upload-prod, check, install-test, status"
+        echo "usage: $0 {upload-test|upload-prod|check|status}" >&2
         exit 1
         ;;
 esac

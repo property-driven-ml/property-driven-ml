@@ -8,17 +8,29 @@ and evaluate properties and constraints in machine learning models.
 from .logic import Logic
 from .boolean_logic import BooleanLogic
 from .fuzzy_logics import (
-    FuzzyLogic, GoedelFuzzyLogic, KleeneDienesFuzzyLogic,
-    LukasiewiczFuzzyLogic, ReichenbachFuzzyLogic, GoguenFuzzyLogic,
-    ReichenbachSigmoidalFuzzyLogic, YagerFuzzyLogic
+    FuzzyLogic,
+    GoedelFuzzyLogic,
+    KleeneDienesFuzzyLogic,
+    LukasiewiczFuzzyLogic,
+    ReichenbachFuzzyLogic,
+    GoguenFuzzyLogic,
+    ReichenbachSigmoidalFuzzyLogic,
+    YagerFuzzyLogic,
 )
 from .stl import STL
 from .dl2 import DL2
 
 __all__ = [
-    "Logic", "BooleanLogic",
-    "FuzzyLogic", "GoedelFuzzyLogic", "KleeneDienesFuzzyLogic",
-    "LukasiewiczFuzzyLogic", "ReichenbachFuzzyLogic", "GoguenFuzzyLogic",
-    "ReichenbachSigmoidalFuzzyLogic", "YagerFuzzyLogic",
-    "STL", "DL2"
+    "Logic",
+    "BooleanLogic",
+    "FuzzyLogic",
+    "GoedelFuzzyLogic",
+    "KleeneDienesFuzzyLogic",
+    "LukasiewiczFuzzyLogic",
+    "ReichenbachFuzzyLogic",
+    "GoguenFuzzyLogic",
+    "ReichenbachSigmoidalFuzzyLogic",
+    "YagerFuzzyLogic",
+    "STL",
+    "DL2",
 ]

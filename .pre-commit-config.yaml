@@ -1,0 +1,70 @@
+repos:
+  # General code quality hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=1000']  # Allow up to 1MB files (research data)
+      - id: debug-statements
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  # Python formatting and linting with ruff
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.7
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  # Jupyter notebook cleaning
+  - repo: https://github.com/nbQA-dev/nbQA
+    rev: 1.9.1
+    hooks:
+      - id: nbqa-ruff
+        args: [--fix]  # Basic fixing for notebooks
+      - id: nbqa-ruff-format
+
+  # Clear notebook outputs (optional - good for research repos)
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.8.1
+    hooks:
+      - id: nbstripout
+
+  # Security scanning
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.6
+    hooks:
+      - id: bandit
+        args: [-c, pyproject.toml]
+        exclude: ^tests/
+
+  # Documentation and comments
+  - repo: https://github.com/econchick/interrogate
+    rev: 1.7.0
+    hooks:
+      - id: interrogate
+        args: [-v,--fail-under=50]  # Lenient for research code
+        exclude: ^(tests/|nb/|scripts/)
+
+# Configuration
+default_language_version:
+  python: python3.12
+
+# Don't run on files that are likely to be auto-generated or data
+exclude: |
+  (?x)^(
+    data/.*|
+    models/.*|
+    logs/.*|
+    mlruns/.*|
+    .*\.ipynb_checkpoints/.*|
+    vehicle/.*
+  )$
