@@ -99,5 +99,4 @@ __all__ = [
     "create_alsomitra_datasets",
     "create_gtsrb_datasets",
     "AlsomitraDataset",
-    "AlsomitraDatasetLike",
 ]
