@@ -6,6 +6,14 @@ from typing import NoReturn
 
 
 class DL2(Logic):
+    """Implementation of DL2.
+
+    Reference: https://proceedings.mlr.press/v97/fischer19a.html
+
+    Provides differentiable, positive real-valued operators for translating
+    logical formulas into loss.
+    """
+
     def __init__(self):
         super().__init__("DL2")
 

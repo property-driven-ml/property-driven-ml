@@ -3,6 +3,8 @@ Alsomitra dataset creation utilities.
 
 This module provides functions to create and load Alsomitra datasets
 for dynamical system modeling tasks.
+
+Alsomitra reference: https://arxiv.org/abs/2505.00622
 """
 
 import torch

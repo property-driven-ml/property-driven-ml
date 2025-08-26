@@ -175,8 +175,8 @@ class Logic(ABC):
         """Logical implication in this logic.
         
         Args:
-            x: Tensor representing the premise.
-            y: Tensor representing the conclusion.
+            x: Antecedent tensor.
+            y: Consequent tensor.
 
         Returns:
             Tensor representing x ==> y.
@@ -184,7 +184,7 @@ class Logic(ABC):
         return self.OR(self.NOT(x), y)
 
     def EQUIV(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Logical equivalene in this logic.
+        """Logical equivalence in this logic.
         
         Args:
             x: Left-hand side tensor.
