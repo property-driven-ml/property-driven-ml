@@ -13,6 +13,29 @@ class BooleanLogic(Logic):
     def __init__(self):
         super().__init__("bool")
 
+    def NOT(self, x: torch.Tensor) -> torch.Tensor:
+        """Boolean logical negation.
+
+        Args:
+            x: Tensor to negate.
+
+        Returns:
+            Boolean tensor with negated values.
+        """
+        return torch.logical_not(x)
+    
+    def NEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Boolean inequality comparison.
+
+        Args:
+            x: Left-hand side tensor.
+            y: Right-hand side tensor.
+
+        Returns:
+            Boolean tensor with True where x != y.
+        """
+        return x != y
+
     def LEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Boolean less than or equal comparison.
 
@@ -24,17 +47,6 @@ class BooleanLogic(Logic):
             Boolean tensor with True where x <= y.
         """
         return x <= y
-
-    def NOT(self, x: torch.Tensor) -> torch.Tensor:
-        """Boolean logical negation.
-
-        Args:
-            x: Tensor to negate.
-
-        Returns:
-            Boolean tensor with negated values.
-        """
-        return torch.logical_not(x)
 
     def AND2(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Boolean logical conjunction.
@@ -59,15 +71,3 @@ class BooleanLogic(Logic):
             Boolean tensor with True where either x or y is True.
         """
         return torch.logical_or(x, y)
-
-    def IMPL(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Boolean logical implication (x -> y).
-
-        Args:
-            x: Antecedent tensor.
-            y: Consequent tensor.
-
-        Returns:
-            Boolean tensor representing logical implication.
-        """
-        return torch.logical_or(torch.logical_not(x), y)

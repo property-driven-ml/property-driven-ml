@@ -18,6 +18,43 @@ class Logic(ABC):
         self.name = name
 
     @abstractmethod
+    def NOT(self, x: torch.Tensor) -> torch.Tensor:
+        """Logical negation in this logic framework.
+
+        Args:
+            x: Tensor to negate.
+
+        Returns:
+            Tensor representing NOT x in this logic.
+        """
+        pass
+
+    @abstractmethod
+    def NEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Inequality in this logic framework.
+
+        Args:
+            x: Left-hand side tensor.
+            y: Right-hand side tensor.
+
+        Returns:
+            Tensor representing x != y in this logic.
+        """
+        pass
+
+    def EQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Equality in this logic framework.
+
+        Args:
+            x: Left-hand side tensor.
+            y: Right-hand side tensor.
+
+        Returns:
+            Tensor representing x == y in this logic.
+        """
+        return self.NOT(self.NEQ(x, y))
+
+    @abstractmethod
     def LEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Less than or equal comparison in this logic framework.
 
@@ -30,17 +67,41 @@ class Logic(ABC):
         """
         pass
 
-    @abstractmethod
-    def NOT(self, x: torch.Tensor) -> torch.Tensor:
-        """Logical negation in this logic framework.
+    def GEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Greater than or equal comparison in this logic framework.
 
         Args:
-            x: Tensor to negate.
+            x: Left-hand side tensor.
+            y: Right-hand side tensor.
 
         Returns:
-            Tensor representing NOT x in this logic.
+            Tensor representing x >= y in this logic.
         """
-        pass
+        return self.LEQ(y, x)
+    
+    def LT(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Less than comparison in this logic framework.
+
+        Args:
+            x: Left-hand side tensor.
+            y: Right-hand side tensor.
+
+        Returns:
+            Tensor representing x < y in this logic.
+        """
+        return self.AND(self.LEQ(x, y), self.NEQ(x, y))
+    
+    def GT(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Greater than comparison in this logic framework.
+
+        Args:
+            x: Left-hand side tensor.
+            y: Right-hand side tensor.
+
+        Returns:
+            Tensor representing x > y in this logic.
+        """
+        return self.LT(y, x)
 
     def AND(self, *xs: torch.Tensor) -> torch.Tensor:
         """Logical conjunction of multiple tensors.
@@ -96,10 +157,40 @@ class Logic(ABC):
         return reduce(self.OR2, xs)
 
     def OR2(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Binary logical disjunction.
+
+        Args:
+            x: First tensor.
+            y: Second tensor.
+
+        Returns:
+            Tensor representing x OR y.
+
+        Raises:
+            NotImplementedError: If not implemented by subclass.
+        """
         raise NotImplementedError("OR2 must be implemented if OR is not overridden.")
 
     def IMPL(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Logical implication in this logic.
+        
+        Args:
+            x: Tensor representing the premise.
+            y: Tensor representing the conclusion.
+
+        Returns:
+            Tensor representing x ==> y.
+        """
         return self.OR(self.NOT(x), y)
 
     def EQUIV(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Logical equivalene in this logic.
+        
+        Args:
+            x: Left-hand side tensor.
+            y: Right-hand side tensor.
+
+        Returns:
+            Tensor representing x <==> y.
+        """
         return self.AND(self.IMPL(x, y), self.IMPL(y, x))

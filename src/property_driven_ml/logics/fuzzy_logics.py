@@ -19,6 +19,29 @@ class FuzzyLogic(Logic):
     def __init__(self, name: str):
         super().__init__(name)
 
+    def NOT(self, x: torch.Tensor) -> torch.Tensor:
+        """Fuzzy logical negation.
+
+        Args:
+            x: Tensor to negate.
+
+        Returns:
+            Fuzzy strong negation (1 - x).
+        """
+        return 1.0 - x
+    
+    def NEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Fuzzy inequality.
+
+        Args:
+            x: Left-hand side tensor.
+            y: Right-hand side tensor.
+
+        Returns:
+            Grounds x != y into [0, 1] for real-valued x, y.
+        """
+        return safe_div(torch.abs(x - y), (torch.abs(x) + torch.abs(y)))
+
     def LEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Fuzzy less than or equal comparison.
 
@@ -27,22 +50,11 @@ class FuzzyLogic(Logic):
             y: Right-hand side tensor.
 
         Returns:
-            Fuzzy membership values in [0,1] for x <= y.
+            Grounds x <= y into [0, 1] for real-valued x, y.
         """
         return 1.0 - safe_div(
             torch.clamp(x - y, min=0.0), (torch.abs(x) + torch.abs(y))
         )
-
-    def NOT(self, x: torch.Tensor) -> torch.Tensor:
-        """Fuzzy logical negation.
-
-        Args:
-            x: Tensor to negate.
-
-        Returns:
-            Fuzzy complement (1 - x).
-        """
-        return 1.0 - x
 
 
 class GoedelFuzzyLogic(FuzzyLogic):

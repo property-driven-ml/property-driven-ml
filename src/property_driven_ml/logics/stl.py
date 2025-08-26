@@ -20,6 +20,20 @@ class STL(Logic):
         super().__init__("STL")
         self.k = k
 
+    def NOT(self, x: torch.Tensor) -> torch.Tensor:
+        """STL logical negation.
+
+        Args:
+            x: Tensor to negate.
+
+        Returns:
+            Negated tensor -x.
+        """
+        return -x
+
+    def NEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        pass # TODO!
+
     def LEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """STL less than or equal operation.
 
@@ -31,17 +45,6 @@ class STL(Logic):
             Real-valued difference y - x (positive when x <= y).
         """
         return y - x
-
-    def NOT(self, x: torch.Tensor) -> torch.Tensor:
-        """STL logical negation.
-
-        Args:
-            x: Tensor to negate.
-
-        Returns:
-            Negated tensor -x.
-        """
-        return -x
 
     def AND(self, *xs) -> torch.Tensor:
         """STL smooth minimum approximation for conjunction.
