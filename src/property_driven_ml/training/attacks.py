@@ -177,7 +177,6 @@ class APGD(Attack):
         device: PyTorch device for tensor computations.
         steps: Number of APGD steps to perform.
         restarts: Number of random restarts for attack.
-        step_size: Initial step size for gradient updates.
         mean: Data normalization mean values.
         std: Data normalization standard deviation values.
     """

@@ -81,7 +81,7 @@ def train(
             rmse = torch.sqrt(loss)
             rmse = (
                 denorm_scale * rmse.cpu()
-            ).squeeze()  # TODO: hmm, explain denormalise
+            ).squeeze()
             avg_pred_metric += rmse
 
         # get random + adversarial samples

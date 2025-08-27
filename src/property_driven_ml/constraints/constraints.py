@@ -319,7 +319,7 @@ class GroupConstraint(Constraint):
 
         return lambda logic: logic.AND(
             *[
-                logic.OR(logic.LEQ(s, self.delta), logic.LEQ(1.0 - self.delta, s))
+                logic.OR(logic.LEQ(s, self.delta), logic.GEQ(s, 1.0 - self.delta))
                 for s in sums
             ]
         )
