@@ -29,7 +29,7 @@ class FuzzyLogic(Logic):
             Fuzzy standard negation (1 - x).
         """
         return 1.0 - x
-    
+
     def NEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Fuzzy inequality.
 
@@ -55,7 +55,7 @@ class FuzzyLogic(Logic):
         return 1.0 - safe_div(
             torch.clamp(x - y, min=0.0), (torch.abs(x) + torch.abs(y))
         )
-    
+
 
 class FuzzyLogicWithSNImplication:
     """Mixin providing (S,N)-implication NOT(x) OR y.

@@ -23,7 +23,7 @@ class BooleanLogic(Logic):
             Boolean tensor with negated values.
         """
         return torch.logical_not(x)
-    
+
     def NEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Boolean inequality comparison.
 

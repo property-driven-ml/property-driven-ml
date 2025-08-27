@@ -79,9 +79,7 @@ def train(
             # loss calculation for regression
             loss = F.mse_loss(y, y_target)
             rmse = torch.sqrt(loss)
-            rmse = (
-                denorm_scale * rmse.cpu()
-            ).squeeze()
+            rmse = (denorm_scale * rmse.cpu()).squeeze()
             avg_pred_metric += rmse
 
         # get random + adversarial samples

@@ -33,7 +33,7 @@ class DL2(Logic):
         raise NotImplementedError(
             "DL2 does not have general negation - rewrite the constraint to push negation inwards, e.g. NOT(x <= y) should be (y < x)"
         )
-    
+
     def NEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         xi = torch.tensor(1.0, device=x.device, dtype=x.dtype)
         return xi * (x == y).float()

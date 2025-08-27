@@ -78,7 +78,7 @@ class Logic(ABC):
             Tensor representing x >= y in this logic.
         """
         return self.LEQ(y, x)
-    
+
     def LT(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Less than comparison in this logic framework.
 
@@ -90,7 +90,7 @@ class Logic(ABC):
             Tensor representing x < y in this logic.
         """
         return self.AND(self.LEQ(x, y), self.NEQ(x, y))
-    
+
     def GT(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Greater than comparison in this logic framework.
 
@@ -173,7 +173,7 @@ class Logic(ABC):
 
     def IMPL(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Logical implication in this logic.
-        
+
         Args:
             x: Antecedent tensor.
             y: Consequent tensor.
@@ -185,7 +185,7 @@ class Logic(ABC):
 
     def EQUIV(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Logical equivalence in this logic.
-        
+
         Args:
             x: Left-hand side tensor.
             y: Right-hand side tensor.
