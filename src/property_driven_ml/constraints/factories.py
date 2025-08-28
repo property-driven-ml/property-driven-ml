@@ -9,8 +9,8 @@ import torch
 from typing import Tuple, Optional, Callable
 
 import property_driven_ml.constraints as constraints
-from ..datasets.base import SizedDataset
-from .safe_eval import safe_bounds
+from .base import SizedDataset
+from ..utils.safe_eval import safe_bounds
 
 
 def CreateEpsilonBall(
@@ -82,7 +82,7 @@ def CreateAlsomitraInputRegion(
 
     def create_region(dataset, mean, std):
         # Import here to avoid circular imports
-        from ..constraints.bounded_datasets import AlsomitraInputRegion
+        from .bounded_datasets import AlsomitraInputRegion
 
         return AlsomitraInputRegion(dataset, bounds_fn, mean, std)
 
