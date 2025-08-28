@@ -1,6 +1,6 @@
 [project]
 name = "property-driven-ml"
-version = "0.2.4"
+version = "0.2.5"
 description = "A general framework for property-driven machine learning with logical constraints"
 readme = "README.md"
 requires-python = ">=3.11"
