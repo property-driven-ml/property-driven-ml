@@ -15,7 +15,7 @@ from property_driven_ml.utils import maybe
 from property_driven_ml.training.epoch_info import EpochInfoTrain, EpochInfoTest
 
 
-def train(
+def train(  # TODO: add task loss function as an argument
     N: torch.nn.Module,
     device: torch.device,
     train_loader: torch.utils.data.DataLoader,

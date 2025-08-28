@@ -1123,7 +1123,7 @@ wheels = [
 
 [[package]]
 name = "property-driven-ml"
-version = "0.2.2"
+version = "0.2.3"
 source = { editable = "." }
 dependencies = [
     { name = "idx2numpy" },

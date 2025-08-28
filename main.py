@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from examples.datasets.alsomitra import AlsomitraDataset
 from examples.models import AlsomitraNet
 
-from property_driven_ml.utils import (
+from property_driven_ml.constraints import (
     CreateEpsilonBall,
     CreateAlsomitraInputRegion,
     CreateStandardRobustnessConstraint,
