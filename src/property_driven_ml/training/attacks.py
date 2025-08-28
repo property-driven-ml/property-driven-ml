@@ -54,7 +54,9 @@ class Attack(ABC):
 
     def uniform_random_sample(self, lo: torch.Tensor, hi: torch.Tensor) -> torch.Tensor:
         z = torch.empty_like(lo).uniform_(0.0, 1.0) * (hi - lo) + lo
-        return torch.clamp(z, min=self.min, max=self.max)
+        return torch.clamp(z, min=self.min, max=self.max).nan_to_num(
+            0
+        )  # TODO: Fix arithmetic to either not have inf or handle it properly
 
     @abstractmethod
     def attack(
