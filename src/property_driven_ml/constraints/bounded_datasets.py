@@ -13,12 +13,6 @@ class BoundedDataset(torch.utils.data.Dataset):
 
     Wraps an existing dataset and provides bounded versions of inputs
     for training with input constraints and adversarial perturbations.
-
-    Args:
-        dataset: Base dataset to wrap.
-        bounds_or_bounds_fn: Either static bounds tuple or function computing bounds.
-        mean: Normalization mean values.
-        std: Normalization standard deviation values.
     """
 
     def __init__(
@@ -29,6 +23,18 @@ class BoundedDataset(torch.utils.data.Dataset):
         mean: torch.Tensor | tuple[float, ...] = (0.0,),
         std: torch.Tensor | tuple[float, ...] = (1.0,),
     ):
+        """
+        Initialize the BoundedDataset.
+
+        Args:
+            dataset: Base dataset to wrap.
+            bounds_or_bounds_fn: Either static bounds tuple or function computing bounds.
+            mean: Normalization mean values.
+            std: Normalization standard deviation values.
+
+        Raises:
+            ValueError: If bounds_or_bounds_fn is not a tuple or Callable.
+        """
         self.dataset = dataset
 
         if isinstance(bounds_or_bounds_fn, tuple):
@@ -47,6 +53,20 @@ class BoundedDataset(torch.utils.data.Dataset):
         self.max = (1.0 - self.mean) / self.std
 
     def __getitem__(self, idx):
+        """
+        Get a bounded item from the dataset. Intended to be used during
+        training by iterating over the dataset.
+
+        Args:
+            idx: Index of the item to retrieve.
+
+        Returns:
+            A tuple (x, y, lo, hi) where x is the input, y is the target,
+            and lo, hi are the bounds.
+
+        Raises:
+            ValueError: If the bounds are invalid or have an incompatible shape.
+        """
         x, y = self.dataset[idx]
 
         if self.has_static_bounds:
@@ -54,9 +74,13 @@ class BoundedDataset(torch.utils.data.Dataset):
         else:
             lo, hi = self.bounds_fn(x)
 
-        assert x.shape == lo.shape == hi.shape, (  # nosec
-            f"x.shape={x.shape}, lo.shape={lo.shape}, hi.shape={hi.shape}"
-        )
+        # Need explicit error handling due to user provided bounds or bound functions
+        if not torch.all(lo <= hi):
+            raise ValueError(f"Invalid bounds: lo={lo}, hi={hi}")
+        elif not x.shape == lo.shape == hi.shape:
+            raise ValueError(
+                f"Shape mismatch: x.shape={x.shape}, lo.shape={lo.shape}, hi.shape={hi.shape}"
+            )
         return x, y, lo, hi
 
     def __len__(self):
@@ -65,16 +89,11 @@ class BoundedDataset(torch.utils.data.Dataset):
 
 # standard epsilon ball (cube, \ell_{infty}) relative to each data point
 class EpsilonBall(BoundedDataset):
-    """Dataset with epsilon-ball bounds around each input.
+    """
+    Dataset with epsilon-ball bounds around each input.
 
     Creates bounded regions by adding/subtracting epsilon from each
     input, useful for adversarial robustness training.
-
-    Args:
-        dataset: Base dataset to wrap.
-        eps: Epsilon value for ball radius.
-        mean: Normalization mean values.
-        std: Normalization standard deviation values.
     """
 
     def __init__(
@@ -84,6 +103,15 @@ class EpsilonBall(BoundedDataset):
         mean: torch.Tensor | tuple[float, ...] = (0.0,),
         std: torch.Tensor | tuple[float, ...] = (1.0,),
     ):
+        """
+        Initialize the EpsilonBall dataset.
+
+        Args:
+            dataset: Base dataset to wrap.
+            eps: Epsilon value for ball radius.
+            mean: Normalization mean values.
+            std: Normalization standard deviation values.
+        """
         x, _ = dataset[0]
         eps = torch.as_tensor(eps) / torch.as_tensor(
             std
@@ -100,14 +128,6 @@ class GlobalBounds(BoundedDataset):
 
     Uses the same absolute lower and upper bounds for all data points,
     useful when all inputs should be constrained to the same region.
-
-    Args:
-        dataset: Base dataset to wrap.
-        lo: Lower bound tensor (same shape as data).
-        hi: Upper bound tensor (same shape as data).
-        mean: Normalization mean values.
-        std: Normalization standard deviation values.
-        normalize: Whether to normalize bounds by std.
     """
 
     def __init__(
@@ -119,6 +139,16 @@ class GlobalBounds(BoundedDataset):
         std: tuple[float, ...] = (1.0,),
         normalize: bool = True,
     ):
+        """
+        Initialize the GlobalBounds dataset.
+
+        Args:
+            dataset: Base dataset to wrap.
+            lo: Lower bound tensor (same shape as data).
+            hi: Upper bound tensor (same shape as data).
+            mean: Normalization mean values.
+            std: Normalization standard deviation values.
+        """
         x, _ = dataset[0]
         assert x.shape == lo.shape == hi.shape, (  # nosec
             f"unsupported bounds shape: lo.shape={lo.shape}, hi.shape={hi.shape} must match data shape {x.shape}"
@@ -141,7 +171,7 @@ class AlsomitraInputRegion(BoundedDataset):
     Provides input bounds specific to the Alsomitra dataset using
     a bounds function that considers the domain constraints.
 
-    Look at examples in GitHub for details.
+    Look at examples/ in GitHub for details.
 
     Args:
         dataset: Alsomitra dataset instance.
