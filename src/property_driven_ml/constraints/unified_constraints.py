@@ -7,6 +7,7 @@ separate BoundedDataset classes.
 """
 
 import torch
+import torchvision
 from abc import abstractmethod
 from typing import Callable, Optional, Tuple
 
@@ -25,7 +26,7 @@ class InputRegionConstraint(Constraint):
     def __init__(
         self,
         device: torch.device,
-        transform: Optional[torch.nn.Module] = None,
+        transform: Optional[torchvision.transforms.Compose] = None,
     ):
         """Initialize InputRegionConstraint.
 
@@ -46,7 +47,9 @@ class InputRegionConstraint(Constraint):
         Returns:
             Tuple of (lower_bounds, upper_bounds) tensors.
         """
-        pass
+        raise NotImplementedError(
+            "Cannot call abstract method, define an implementation"
+        )
 
     def apply_transform(self, x: torch.Tensor) -> torch.Tensor:
         """Apply transformation pipeline to input.
@@ -86,19 +89,26 @@ class EpsilonBallConstraint(InputRegionConstraint):
         device: torch.device,
         output_constraint: Constraint,
         eps: float,
-        transform: Optional[torch.nn.Module] = None,
+        mean: Tuple[float, ...] = (0.0,),
+        std: Tuple[float, ...] = (1.0,),
+        transform: Optional[torchvision.transforms.Compose] = None,
     ):
         """Initialize EpsilonBallConstraint.
 
         Args:
             device: PyTorch device for tensor computations.
             output_constraint: The underlying output constraint to enforce.
-            eps: Epsilon value for ball radius.
+            eps: Epsilon value for ball radius (will be scaled by std like in bounded_datasets).
+            mean: Normalization mean values.
+            std: Normalization standard deviation values.
             transform: Optional transformation pipeline.
         """
         super().__init__(device, transform)
         self.output_constraint = output_constraint
-        self.eps = torch.as_tensor(eps, device=device)
+        self.mean = torch.as_tensor(mean, device=device)
+        self.std = torch.as_tensor(std, device=device)
+        # Scale epsilon by std to match bounded_datasets implementation
+        self.eps = torch.as_tensor(eps, device=device) / self.std
 
     def get_input_bounds(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute epsilon-ball bounds around input x."""
@@ -128,7 +138,7 @@ class GlobalBoundsConstraint(InputRegionConstraint):
         output_constraint: Constraint,
         lo: torch.Tensor,
         hi: torch.Tensor,
-        transform: Optional[torch.nn.Module] = None,
+        transform: Optional[torchvision.transforms.Compose] = None,
     ):
         """Initialize GlobalBoundsConstraint.
 
@@ -173,7 +183,7 @@ class AlsomitraConstraint(InputRegionConstraint):
         device: torch.device,
         bounds_fn: Callable[[torch.Tensor], Tuple[torch.Tensor, torch.Tensor]],
         output_constraint: Constraint,
-        transform: Optional[torch.nn.Module] = None,
+        transform: Optional[torchvision.transforms.Compose] = None,
     ):
         """Initialize AlsomitraConstraint.
 
@@ -217,21 +227,28 @@ class StandardRobustnessWithInputRegion(InputRegionConstraint):
         device: torch.device,
         delta: float,
         eps: float,
-        transform: Optional[torch.nn.Module] = None,
+        mean: Tuple[float, ...] = (0.0,),
+        std: Tuple[float, ...] = (1.0,),
+        transform: Optional[torchvision.transforms.Compose] = None,
     ):
         """Initialize StandardRobustnessWithInputRegion.
 
         Args:
             device: PyTorch device for tensor computations.
             delta: Maximum allowed change in output probabilities.
-            eps: Epsilon value for input perturbation bounds.
+            eps: Epsilon value for input perturbation bounds (will be scaled by std).
+            mean: Normalization mean values.
+            std: Normalization standard deviation values.
             transform: Optional transformation pipeline.
         """
         super().__init__(device, transform)
         from .constraints import StandardRobustnessConstraint
 
         self.output_constraint = StandardRobustnessConstraint(device, delta)
-        self.eps = torch.as_tensor(eps, device=device)
+        self.mean = torch.as_tensor(mean, device=device)
+        self.std = torch.as_tensor(std, device=device)
+        # Scale epsilon by std to match bounded_datasets implementation
+        self.eps = torch.as_tensor(eps, device=device) / self.std
 
     def get_input_bounds(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute epsilon-ball bounds around input x."""
@@ -259,21 +276,28 @@ class LipschitzRobustnessWithInputRegion(InputRegionConstraint):
         device: torch.device,
         L: float,
         eps: float,
-        transform: Optional[torch.nn.Module] = None,
+        mean: Tuple[float, ...] = (0.0,),
+        std: Tuple[float, ...] = (1.0,),
+        transform: Optional[torchvision.transforms.Compose] = None,
     ):
         """Initialize LipschitzRobustnessWithInputRegion.
 
         Args:
             device: PyTorch device for tensor computations.
             L: Lipschitz constant.
-            eps: Epsilon value for input perturbation bounds.
+            eps: Epsilon value for input perturbation bounds (will be scaled by std).
+            mean: Normalization mean values.
+            std: Normalization standard deviation values.
             transform: Optional transformation pipeline.
         """
         super().__init__(device, transform)
         from .constraints import LipschitzRobustnessConstraint
 
         self.output_constraint = LipschitzRobustnessConstraint(device, L)
-        self.eps = torch.as_tensor(eps, device=device)
+        self.mean = torch.as_tensor(mean, device=device)
+        self.std = torch.as_tensor(std, device=device)
+        # Scale epsilon by std to match bounded_datasets implementation
+        self.eps = torch.as_tensor(eps, device=device) / self.std
 
     def get_input_bounds(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute epsilon-ball bounds around input x."""

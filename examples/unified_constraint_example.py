@@ -40,6 +40,15 @@ def create_toy_dataset(n_samples: int = 1000, input_dim: int = 10, n_classes: in
     return TensorDataset(X, y)
 
 
+def get_normalization_stats(dataset, input_dim):
+    """Calculate mean and std for normalization (for demonstration)."""
+    # For this toy dataset, we'll use reasonable normalization values
+    # In practice, you'd compute these from your actual training data
+    mean = tuple([0.0] * input_dim)  # Zero mean for randn data
+    std = tuple([1.0] * input_dim)  # Unit std for randn data
+    return mean, std
+
+
 def main():
     # Set up device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -53,6 +62,17 @@ def main():
     train_dataset = create_toy_dataset(1000, input_dim, n_classes)
     test_dataset = create_toy_dataset(200, input_dim, n_classes)
 
+    # Get normalization parameters for the dataset
+    mean, std = get_normalization_stats(train_dataset, input_dim)
+    print(f"Using normalization - mean: {mean[:3]}..., std: {std[:3]}...")
+
+    # NOTE: For real datasets like MNIST or CIFAR, you would use:
+    # mean = (0.1307,)  # MNIST mean
+    # std = (0.3081,)   # MNIST std
+    # or for CIFAR-10:
+    # mean = (0.485, 0.456, 0.406)  # CIFAR-10 mean
+    # std = (0.229, 0.224, 0.225)   # CIFAR-10 std
+
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
@@ -60,7 +80,9 @@ def main():
     constraint = StandardRobustnessWithInputRegion(
         device=device,
         delta=0.1,  # Maximum allowed change in output probabilities
-        eps=0.3,  # Epsilon ball radius for input perturbations
+        eps=0.3,  # Epsilon ball radius for input perturbations (in original data space)
+        mean=mean,  # Normalization mean values
+        std=std,  # Normalization std values (epsilon will be scaled by this)
         transform=None,  # No transformation pipeline needed for this example
     )
 
@@ -127,13 +149,14 @@ def main():
             f"Constraint Security: {test_info.constr_sec:.3f}"
         )
 
-    print("\\nTraining completed successfully!")
-    print("\\nKey benefits of the new architecture:")
+    print("\nTraining completed successfully!")
+    print("\nKey benefits of the new architecture:")
     print("1. No need for BoundedDataset classes")
     print("2. Unified constraint handling (input regions + output constraints)")
     print("3. Regular DataLoader with any dataset")
     print("4. Dynamic bound computation during training")
-    print("5. Cleaner, more flexible API")
+    print("5. Proper epsilon scaling with normalization parameters")
+    print("6. Cleaner, more flexible API")
 
 
 if __name__ == "__main__":

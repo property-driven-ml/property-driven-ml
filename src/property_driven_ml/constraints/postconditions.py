@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 import torch.linalg as LA
+import inspect
 
 from abc import ABC, abstractmethod
 from typing import Callable
@@ -10,41 +11,87 @@ from ..logics.boolean_logic import BooleanLogic
 from ..logics.fuzzy_logics import FuzzyLogic
 from ..logics.stl import STL
 
+BOOLEAN_LOGIC = BooleanLogic()
+
+
+class Precondition(ABC):
+    """
+    Abstract base class for preconditions/ input postconditions.
+    """
+
+    @abstractmethod
+    def get_precondition(self, *args, **kwargs) -> Callable[[Logic], torch.Tensor]:
+        """Get the input constraint function for this property.
+
+        Returns:
+            Function that takes a Logic instance and returns constraint tensor.
+        """
+        pass
+
+
+class Postcondition(ABC):
+    """
+    Abstract base class for postconditions/ output properties.
+    """
+
+    @abstractmethod
+    def get_postcondition(self, *args, **kwargs) -> Callable[[Logic], torch.Tensor]:
+        """
+        Get the postcondition function for this property.
+
+        This method should be implemented by subclasses with their specific signature.
+        Common parameters include:
+            N: Neural network model.
+            x: Original input tensor.
+            x_adv: Adversarial input tensor.
+            y_target: Target output tensor.
+            device: Optional PyTorch device for tensor computations.
+
+        Additional parameters may be specific to the postcondition implementation.
+
+        Args:
+            *args: Positional arguments specific to the postcondition.
+            **kwargs: Keyword arguments specific to the postcondition.
+
+        Returns:
+            Function that takes a Logic instance and returns postcondition tensor.
+        """
+        pass
+
 
 class Constraint(ABC):
-    """Abstract base class for neural network property constraints.
+    """
+    Abstract base class for neural network property constraints, which are a combination of a precondition and postcondition.
 
     Provides a common interface for evaluating logical constraints on neural
     network outputs, supporting different logical frameworks.
 
     Args:
         device: PyTorch device for tensor computations.
+        precondition: Precondition instance defining input constraints.
+        postcondition: Postcondition instance defining output property.
     """
 
-    def __init__(self, device: torch.device):
-        self.device = device
-        self.boolean_logic = BooleanLogic()
-
     @abstractmethod
-    def get_constraint(
+    def __init__(
         self,
-        N: torch.nn.Module,
-        x: torch.Tensor | None,
-        x_adv: torch.Tensor | None,
-        y_target: torch.Tensor | None,
-    ) -> Callable[[Logic], torch.Tensor]:
-        """Get the constraint function for this property.
+        device: torch.device,
+        precondition: Precondition,
+        postcondition: Postcondition,
+    ):
+        """
+        Initialize the constraint with the given device, precondition, and postcondition.
+        The exact details of how pre and postconditions are initialized may vary
+        depending on the specific constraint implementation.
 
         Args:
-            N: Neural network model.
-            x: Original input tensor.
-            x_adv: Adversarial input tensor.
-            y_target: Target output tensor.
-
-        Returns:
-            Function that takes a Logic instance and returns constraint tensor.
+            device: PyTorch device for tensor computations.
+            precondition: Precondition instance defining input constraints.
+            postcondition: Postcondition instance defining output property.
         """
-        pass
+        self.postcondition = postcondition
+        self.precondition = precondition
+        self.device = device
 
     def eval(
         self,
@@ -55,8 +102,19 @@ class Constraint(ABC):
         logic: Logic,
         reduction: str | None = None,
         skip_sat: bool = False,
+        postcondition_kwargs: dict = {},
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Evaluate the constraint and compute loss and satisfaction.
+
+        This method automatically adapts to any postcondition signature by using
+        introspection to determine which parameters the postcondition needs and
+        only passing those parameters.
+
+        Examples of supported postcondition signatures:
+            get_postcondition(self, N, x, x_adv)              # StandardRobustness
+            get_postcondition(self, N, x_adv)                 # GroupConstraint
+            get_postcondition(self, N, x_adv, scale, centre)  # AlsomitraOutput
+            get_postcondition(self, N, x, x_adv, y_target)    # Future constraints
 
         Args:
             N: Neural network model.
@@ -66,13 +124,43 @@ class Constraint(ABC):
             logic: Logic framework for constraint evaluation.
             reduction: Optional reduction method for loss aggregation.
             skip_sat: Whether to skip satisfaction computation.
+            postcondition_args: Additional arguments to pass to get_postcondition
+                                  (e.g., scale, centre for AlsomitraOutputConstraint).
 
         Returns:
             Tuple of (loss, satisfaction) tensors.
         """
-        constraint = self.get_constraint(N, x, x_adv, y_target)
+        # Get the signature of the postcondition's get_postcondition method
+        sig = inspect.signature(self.postcondition.get_postcondition)
 
-        loss = constraint(logic)
+        # Build a dictionary of all available parameters
+        available_params = {
+            "N": N,
+            "x": x,
+            "x_adv": x_adv,
+            "y_target": y_target,
+            **postcondition_kwargs,
+        }
+
+        # Filter to only include parameters that the method accepts
+        method_params = {}
+        for param_name, param in sig.parameters.items():
+            if param_name == "self":
+                continue  # Skip 'self' parameter
+            if param_name in available_params:
+                method_params[param_name] = available_params[param_name]
+            elif param.default is not param.empty:
+                # Parameter has a default value, don't need to provide it
+                continue
+            else:
+                # Required parameter not available - this could be an error
+                # but we'll let the method call fail naturally with a clear error
+                pass
+
+        # Call the method with only the parameters it accepts
+        postcondition = self.postcondition.get_postcondition(**method_params)
+
+        loss = postcondition(logic)
         assert not torch.isnan(loss).any()  # nosec
 
         if isinstance(logic, FuzzyLogic):
@@ -84,7 +172,7 @@ class Constraint(ABC):
             # When skipping sat calculation, return a dummy tensor with same shape as loss
             sat = torch.zeros_like(loss)
         else:
-            sat = constraint(self.boolean_logic).float()
+            sat = postcondition(BOOLEAN_LOGIC).float()
 
         def agg(value: torch.Tensor) -> torch.Tensor:
             if reduction is None:
@@ -102,8 +190,8 @@ class Constraint(ABC):
         return agg(loss), agg(sat)
 
 
-class StandardRobustnessConstraint(Constraint):
-    """Constraint ensuring model robustness to adversarial perturbations.
+class StandardRobustnessPostcondition(Postcondition):
+    """postcondition ensuring model robustness to adversarial perturbations.
 
     Enforces that the change in output probabilities between original and
     adversarial inputs remains within a specified threshold delta.
@@ -114,23 +202,24 @@ class StandardRobustnessConstraint(Constraint):
     """
 
     def __init__(self, device: torch.device, delta: float | torch.Tensor):
-        super().__init__(device)
-
+        self.device = device
         assert 0.0 <= delta <= 1.0, (  # nosec
             "delta is a probability and should be within the range [0, 1]"
         )
         self.delta = torch.as_tensor(delta, device=self.device)
 
-    def get_constraint(  # type: ignore
-        self, N: torch.nn.Module, x: torch.Tensor, x_adv: torch.Tensor, _y_target: None
+    def get_postcondition(
+        self,
+        N: torch.nn.Module,
+        x: torch.Tensor,
+        x_adv: torch.Tensor,
     ) -> Callable[[Logic], torch.Tensor]:
-        """Get robustness constraint for probability difference bounds.
+        """Get robustness postcondition for probability difference bounds.
 
         Args:
             N: Neural network model.
             x: Original input tensor.
             x_adv: Adversarial input tensor.
-            _y_target: Unused target tensor.
 
         Returns:
             Function that constrains infinity norm of probability differences.
@@ -145,8 +234,9 @@ class StandardRobustnessConstraint(Constraint):
         )
 
 
-class LipschitzRobustnessConstraint(Constraint):
-    """Constraint enforcing Lipschitz continuity for model robustness.
+class LipschitzRobustnessPostcondition(Postcondition):
+    """
+    Postcondition enforcing Lipschitz continuity for model robustness.
 
     Ensures that the rate of change in model outputs is bounded by the
     Lipschitz constant L relative to input perturbations.
@@ -157,20 +247,18 @@ class LipschitzRobustnessConstraint(Constraint):
     """
 
     def __init__(self, device: torch.device, L: float):
-        super().__init__(device)
-
+        self.device = device
         self.L = torch.as_tensor(L, device=device)
 
-    def get_constraint(  # type: ignore
-        self, N: torch.nn.Module, x: torch.Tensor, x_adv: torch.Tensor, _y_target: None
+    def get_postcondition(
+        self, N: torch.nn.Module, x: torch.Tensor, x_adv: torch.Tensor
     ) -> Callable[[Logic], torch.Tensor]:
-        """Get Lipschitz constraint relating input and output changes.
+        """Get Lipschitz postcondition relating input and output changes.
 
         Args:
             N: Neural network model.
             x: Original input tensor.
             x_adv: Perturbed input tensor.
-            _y_target: Unused target tensor.
 
         Returns:
             Function that constrains output change by L times input change.
@@ -184,8 +272,9 @@ class LipschitzRobustnessConstraint(Constraint):
         return lambda logic: logic.LEQ(diff_y, self.L * diff_x)
 
 
-class AlsomitraOutputConstraint(Constraint):
-    """Constraint ensuring model outputs fall within specified bounds.
+class AlsomitraOutputPostcondition(Postcondition):
+    """
+    Postcondition ensuring model outputs fall within specified bounds.
 
     Enforces that neural network outputs remain within lower and upper bounds,
     with optional normalization to handle different output scales.
@@ -204,8 +293,7 @@ class AlsomitraOutputConstraint(Constraint):
         hi: float | torch.Tensor | None,
         normalize: bool = True,
     ):
-        super().__init__(device)
-
+        self.device = device
         # Store raw bounds and normalization flag
         self.lo_raw = lo
         self.hi_raw = hi
@@ -216,22 +304,22 @@ class AlsomitraOutputConstraint(Constraint):
             self.lo = torch.as_tensor(lo, device=device) if lo is not None else None
             self.hi = torch.as_tensor(hi, device=device) if hi is not None else None
 
-    def get_constraint(  # type: ignore
+    def get_postcondition(
         self,
         N: torch.nn.Module,
-        _x: None,
         x_adv: torch.Tensor,
-        _y_target: None,
         scale: torch.Tensor | None = None,
         centre: torch.Tensor | None = None,
     ) -> Callable[[Logic], torch.Tensor]:
-        """Get output bounds constraint for adversarial inputs.
+        """
+        Get output bounds postcondition for adversarial inputs.
+
+        This implementation uses a specialized signature that only includes
+        the parameters actually needed by this postcondition type.
 
         Args:
             N: Neural network model.
-            _x: Unused original input tensor.
             x_adv: Adversarial input tensor.
-            _y_target: Unused target tensor.
             scale: Optional scaling factor for normalization.
             centre: Optional centre point for normalization.
 
@@ -241,7 +329,7 @@ class AlsomitraOutputConstraint(Constraint):
         y_adv = N(x_adv).squeeze()
 
         if self.normalize:
-            # Normalize bounds at constraint time using class constants
+            # Normalize bounds at postcondition time using class constants
             lo_normalized = (
                 None
                 if self.lo_raw is None
@@ -278,8 +366,9 @@ class AlsomitraOutputConstraint(Constraint):
             )
 
 
-class GroupConstraint(Constraint):
-    """Constraint ensuring similar outputs for grouped inputs.
+class GroupPostcondition(Postcondition):
+    """
+    Postcondition ensuring similar outputs for grouped inputs.
 
     Enforces that neural network outputs remain within delta for inputs
     that belong to the same group, promoting consistency within groups.
@@ -291,7 +380,7 @@ class GroupConstraint(Constraint):
     """
 
     def __init__(self, device: torch.device, indices: list[list[int]], delta: float):
-        super().__init__(device)
+        self.device = device
 
         self.indices = indices
 
@@ -300,16 +389,19 @@ class GroupConstraint(Constraint):
         )
         self.delta = torch.as_tensor(delta, device=self.device)
 
-    def get_constraint(  # type: ignore
-        self, N: torch.nn.Module, _x: None, x_adv: torch.Tensor, _y_target: None
+    def get_postcondition(
+        self,
+        N: torch.nn.Module,
+        x_adv: torch.Tensor | None,
     ) -> Callable[[Logic], torch.Tensor]:
-        """Get group consistency constraint for adversarial inputs.
+        """Get group consistency postcondition for adversarial inputs.
+
+        This implementation demonstrates another specialized signature,
+        using only the model and adversarial inputs (no original input needed).
 
         Args:
             N: Neural network model.
-            _x: Unused original input tensor.
             x_adv: Adversarial input tensor.
-            _y_target: Unused target tensor.
 
         Returns:
             Function that constrains grouped outputs to be within delta bounds.
