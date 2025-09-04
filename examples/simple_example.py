@@ -48,13 +48,11 @@ def main():
     # Set up property-driven training components
     logic = logics.GoedelFuzzyLogic()  # Use Gödel fuzzy logic
     constraint = constraints.StandardRobustnessConstraint(
-        device, delta=0.1
+        device, epsilon=0.001, delta=0.1
     )  # 10% robustness margin
 
     # Set up adversarial oracle for constraint evaluation
-    x_sample, _ = dataset[0]
-    x_sample = x_sample.unsqueeze(0).to(device)
-    oracle = training.PGD(x_sample, logic, device, steps=10, restarts=5, step_size=0.01)
+    oracle = training.PGD(logic, device, steps=10, restarts=5, step_size=0.01)
 
     # Set up optimizers
     optimizer = optim.Adam(model.parameters(), lr=0.001)
@@ -78,8 +76,7 @@ def main():
             pred_loss = nn.CrossEntropyLoss()(pred, y)
 
             # Generate adversarial examples for constraint evaluation
-            lo, hi = x - 0.1, x + 0.1  # Small perturbation bounds
-            x_adv = oracle.attack(model, x, y, lo, hi, constraint)
+            x_adv = oracle.attack(model, x, y, constraint)
 
             # Evaluate constraint
             constraint_loss, constraint_sat = constraint.eval(
@@ -133,8 +130,7 @@ def main():
         accuracy = (pred.argmax(dim=1) == test_y).float().mean()
 
         # Constraint satisfaction on adversarial examples
-        lo, hi = test_x - 0.1, test_x + 0.1
-        test_x_adv = oracle.attack(model, test_x, test_y, lo, hi, constraint)
+        test_x_adv = oracle.attack(model, test_x, test_y, constraint)
         _, constraint_sat = constraint.eval(
             model, test_x, test_x_adv, None, logics.BooleanLogic(), reduction="mean"
         )

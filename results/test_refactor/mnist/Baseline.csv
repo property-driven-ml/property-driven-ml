@@ -1,0 +1,3 @@
+#['main.py', '--batch-size', '32', '--lr', '0.01', '--epochs', '1', '--dataset', 'mnist', '--experiment-name', 'test_refactor']
+Epoch,Train-P-Loss,Train-R-Loss,Train-C-Loss,Train-P-Loss-Weight,Train-C-Loss-Weight,Train-P-Metric,Train-C-Acc,Train-C-Sec,Test-P-Loss,Test-R-Loss,Test-C-Loss,Test-P-Metric,Test-C-Acc,Test-C-Sec,Train-Time,Test-Time
+0,0.0,0.0,0.0,1.0,1.0,0.0,0.0,0.0,2.305347265625,0.0,0.0,0.0978,1.0,1.0,0.0,137.78852224349976

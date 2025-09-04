@@ -5,22 +5,17 @@ This module provides functions to create and load datasets for different
 machine learning tasks supported by the framework.
 """
 
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Callable
 import torch
 from torch.utils.data import DataLoader
 
-from property_driven_ml.constraints.base import (
-    DatasetCreator,
-    SizedDataset,
-    validate_dataset_result,
-)
 from .mnist import create_mnist_datasets
 from .alsomitra import create_alsomitra_datasets, AlsomitraDataset
 from .gtsrb import create_gtsrb_datasets
 
 
 # Registry of available dataset creators
-DATASET_CREATORS: Dict[str, DatasetCreator] = {
+DATASET_CREATORS: Dict[str, Callable] = {
     "mnist": create_mnist_datasets,
     "alsomitra": create_alsomitra_datasets,
     "gtsrb": create_gtsrb_datasets,
@@ -55,8 +50,6 @@ def create_dataset(
     result = creator(batch_size)
 
     # Validate the result format for consistency
-    validate_dataset_result(result)
-
     return result
 
 
@@ -70,7 +63,7 @@ def list_available_datasets() -> list[str]:
     return list(DATASET_CREATORS.keys())
 
 
-def register_dataset(name: str, creator: DatasetCreator) -> None:
+def register_dataset(name: str, creator: Callable) -> None:
     """
     Register a new dataset creator.
 
@@ -93,8 +86,6 @@ __all__ = [
     "list_available_datasets",
     "register_dataset",
     "DATASET_CREATORS",
-    "DatasetCreator",
-    "SizedDataset",
     "create_mnist_datasets",
     "create_alsomitra_datasets",
     "create_gtsrb_datasets",

@@ -12,29 +12,17 @@ from .grad_norm import GradNorm
 from .epoch_info import EpochInfoTrain, EpochInfoTest
 from .engine import train, test
 
-# Enhanced components for unified constraint architecture
-from .enhanced_attacks import EnhancedAttack, EnhancedPGD, EnhancedAPGD
-from .enhanced_engine import (
-    train_enhanced,
-    test_enhanced,
-    create_enhanced_constraint_from_specs,
-)
-
 __all__ = [
-    # Legacy training components
+    # Attacks
     "Attack",
     "PGD",
     "APGD",
+    # Gradient normalization
     "GradNorm",
+    # Epoch info
     "EpochInfoTrain",
     "EpochInfoTest",
+    # Training/testing engines
     "train",
     "test",
-    # Enhanced components for unified constraint architecture
-    "EnhancedAttack",
-    "EnhancedPGD",
-    "EnhancedAPGD",
-    "train_enhanced",
-    "test_enhanced",
-    "create_enhanced_constraint_from_specs",
 ]

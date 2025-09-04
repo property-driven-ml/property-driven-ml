@@ -12,54 +12,24 @@ BoundedDataset classes.
 from .constraints import (
     Constraint,
     StandardRobustnessConstraint,
-    LipschitzRobustnessConstraint,
-    AlsomitraOutputConstraint,
-    GroupConstraint,
 )
-from .bounded_datasets import EpsilonBall, BoundedDataset, AlsomitraInputRegion
-from .base import SizedDataset
-
-# New unified constraint architecture
-from .unified_constraints import (
-    InputRegionConstraint,
-    EpsilonBallConstraint,
-    GlobalBoundsConstraint,
-    AlsomitraConstraint,
-    StandardRobustnessWithInputRegion,
-    LipschitzRobustnessWithInputRegion,
-)
-
-from ..constraints.factories import (
-    CreateEpsilonBall,
-    CreateAlsomitraInputRegion,
-    CreateStandardRobustnessConstraint,
-    CreateLipschitzRobustnessConstraint,
-    CreateAlsomitraOutputConstraint,
+from .preconditions import EpsilonBall
+from .postconditions import (
+    StandardRobustnessPostcondition,
+    LipschitzRobustnessPostcondition,
+    GroupPostcondition,
+    AlsomitraOutputPostcondition,
 )
 
 __all__ = [
-    # Base constraint classes
+    # Constraints
     "Constraint",
     "StandardRobustnessConstraint",
-    "LipschitzRobustnessConstraint",
-    "AlsomitraOutputConstraint",
-    "GroupConstraint",
-    # Legacy bounded dataset classes (deprecated)
+    # Preconditions
     "EpsilonBall",
-    "BoundedDataset",
-    "AlsomitraInputRegion",
-    "SizedDataset",
-    # New unified constraint architecture
-    "InputRegionConstraint",
-    "EpsilonBallConstraint",
-    "GlobalBoundsConstraint",
-    "AlsomitraConstraint",
-    "StandardRobustnessWithInputRegion",
-    "LipschitzRobustnessWithInputRegion",
-    # Factory functions
-    "CreateEpsilonBall",
-    "CreateStandardRobustnessConstraint",
-    "CreateLipschitzRobustnessConstraint",
-    "CreateAlsomitraOutputConstraint",
-    "CreateAlsomitraInputRegion",
+    # Postconditions
+    "StandardRobustnessPostcondition",
+    "LipschitzRobustnessPostcondition",
+    "GroupPostcondition",
+    "AlsomitraOutputPostcondition",
 ]

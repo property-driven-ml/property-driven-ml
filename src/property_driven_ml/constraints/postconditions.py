@@ -1,32 +1,11 @@
 import torch
 import torch.nn.functional as F
 import torch.linalg as LA
-import inspect
 
 from abc import ABC, abstractmethod
 from typing import Callable
 
 from ..logics.logic import Logic
-from ..logics.boolean_logic import BooleanLogic
-from ..logics.fuzzy_logics import FuzzyLogic
-from ..logics.stl import STL
-
-BOOLEAN_LOGIC = BooleanLogic()
-
-
-class Precondition(ABC):
-    """
-    Abstract base class for preconditions/ input postconditions.
-    """
-
-    @abstractmethod
-    def get_precondition(self, *args, **kwargs) -> Callable[[Logic], torch.Tensor]:
-        """Get the input constraint function for this property.
-
-        Returns:
-            Function that takes a Logic instance and returns constraint tensor.
-        """
-        pass
 
 
 class Postcondition(ABC):
@@ -57,137 +36,6 @@ class Postcondition(ABC):
             Function that takes a Logic instance and returns postcondition tensor.
         """
         pass
-
-
-class Constraint(ABC):
-    """
-    Abstract base class for neural network property constraints, which are a combination of a precondition and postcondition.
-
-    Provides a common interface for evaluating logical constraints on neural
-    network outputs, supporting different logical frameworks.
-
-    Args:
-        device: PyTorch device for tensor computations.
-        precondition: Precondition instance defining input constraints.
-        postcondition: Postcondition instance defining output property.
-    """
-
-    @abstractmethod
-    def __init__(
-        self,
-        device: torch.device,
-        precondition: Precondition,
-        postcondition: Postcondition,
-    ):
-        """
-        Initialize the constraint with the given device, precondition, and postcondition.
-        The exact details of how pre and postconditions are initialized may vary
-        depending on the specific constraint implementation.
-
-        Args:
-            device: PyTorch device for tensor computations.
-            precondition: Precondition instance defining input constraints.
-            postcondition: Postcondition instance defining output property.
-        """
-        self.postcondition = postcondition
-        self.precondition = precondition
-        self.device = device
-
-    def eval(
-        self,
-        N: torch.nn.Module,
-        x: torch.Tensor,
-        x_adv: torch.Tensor,
-        y_target: torch.Tensor | None,
-        logic: Logic,
-        reduction: str | None = None,
-        skip_sat: bool = False,
-        postcondition_kwargs: dict = {},
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Evaluate the constraint and compute loss and satisfaction.
-
-        This method automatically adapts to any postcondition signature by using
-        introspection to determine which parameters the postcondition needs and
-        only passing those parameters.
-
-        Examples of supported postcondition signatures:
-            get_postcondition(self, N, x, x_adv)              # StandardRobustness
-            get_postcondition(self, N, x_adv)                 # GroupConstraint
-            get_postcondition(self, N, x_adv, scale, centre)  # AlsomitraOutput
-            get_postcondition(self, N, x, x_adv, y_target)    # Future constraints
-
-        Args:
-            N: Neural network model.
-            x: Original input tensor.
-            x_adv: Adversarial input tensor.
-            y_target: Target output tensor.
-            logic: Logic framework for constraint evaluation.
-            reduction: Optional reduction method for loss aggregation.
-            skip_sat: Whether to skip satisfaction computation.
-            postcondition_args: Additional arguments to pass to get_postcondition
-                                  (e.g., scale, centre for AlsomitraOutputConstraint).
-
-        Returns:
-            Tuple of (loss, satisfaction) tensors.
-        """
-        # Get the signature of the postcondition's get_postcondition method
-        sig = inspect.signature(self.postcondition.get_postcondition)
-
-        # Build a dictionary of all available parameters
-        available_params = {
-            "N": N,
-            "x": x,
-            "x_adv": x_adv,
-            "y_target": y_target,
-            **postcondition_kwargs,
-        }
-
-        # Filter to only include parameters that the method accepts
-        method_params = {}
-        for param_name, param in sig.parameters.items():
-            if param_name == "self":
-                continue  # Skip 'self' parameter
-            if param_name in available_params:
-                method_params[param_name] = available_params[param_name]
-            elif param.default is not param.empty:
-                # Parameter has a default value, don't need to provide it
-                continue
-            else:
-                # Required parameter not available - this could be an error
-                # but we'll let the method call fail naturally with a clear error
-                pass
-
-        # Call the method with only the parameters it accepts
-        postcondition = self.postcondition.get_postcondition(**method_params)
-
-        loss = postcondition(logic)
-        assert not torch.isnan(loss).any()  # nosec
-
-        if isinstance(logic, FuzzyLogic):
-            loss = torch.ones_like(loss) - loss
-        elif isinstance(logic, STL):
-            loss = torch.clamp(logic.NOT(loss), min=0.0)
-
-        if skip_sat:
-            # When skipping sat calculation, return a dummy tensor with same shape as loss
-            sat = torch.zeros_like(loss)
-        else:
-            sat = postcondition(BOOLEAN_LOGIC).float()
-
-        def agg(value: torch.Tensor) -> torch.Tensor:
-            if reduction is None:
-                return value
-            elif reduction == "mean":
-                # Convert boolean tensors to float for mean calculation
-                if value.dtype == torch.bool:
-                    value = value.float()
-                return torch.mean(value)
-            elif reduction == "sum":
-                return torch.sum(value)
-            else:
-                raise ValueError(f"Unsupported reduction: {reduction}")
-
-        return agg(loss), agg(sat)
 
 
 class StandardRobustnessPostcondition(Postcondition):

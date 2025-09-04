@@ -12,12 +12,11 @@ from torch.utils.data import DataLoader, random_split
 from typing import Tuple
 
 from examples.models import AlsomitraNet
-from property_driven_ml.constraints.base import NormalizedDataset
 
 import pandas as pd
 
 
-class AlsomitraDataset(torch.utils.data.Dataset, NormalizedDataset):
+class AlsomitraDataset(torch.utils.data.Dataset):
     def __init__(self, csv_file):
         data = pd.read_csv(csv_file, header=None)
 

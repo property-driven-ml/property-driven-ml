@@ -32,7 +32,7 @@ class STL(Logic):
         return -x
 
     def NEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        pass  # TODO!
+        raise NotImplementedError("NEQ has not been implemented for STL")  # TODO
 
     def LEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """STL less than or equal operation.

@@ -69,16 +69,19 @@ class GradNorm:
         norms = []
 
         for weight in self.weights:
-            norms.append(
-                weight
-                * torch.sqrt(
-                    sum(
-                        p.grad.norm() ** 2
-                        for p in self.N.parameters()
-                        if p.grad is not None
-                    )
-                )
+            # Collect gradient norms for all parameters with gradients
+            grad_norms = torch.stack(
+                [p.grad.norm() ** 2 for p in self.N.parameters() if p.grad is not None]
             )
+
+            # Use torch.sum instead of built-in sum to ensure tensor output
+            total_grad_norm_squared = (
+                torch.sum(grad_norms)
+                if len(grad_norms) > 0
+                else torch.tensor(0.0, device=self.device)
+            )
+
+            norms.append(weight * torch.sqrt(total_grad_norm_squared))
 
         norms = torch.stack(norms)
 

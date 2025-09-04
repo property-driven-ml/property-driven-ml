@@ -52,9 +52,6 @@ dev = [
     "twine>=6.1.0",
 ]
 
-[project.scripts]
-property-driven-ml = "property_driven_ml.cli:main"
-
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
