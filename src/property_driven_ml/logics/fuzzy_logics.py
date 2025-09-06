@@ -58,8 +58,9 @@ class FuzzyLogic(Logic):
 
 
 class FuzzyLogicWithSNImplication(FuzzyLogic):
-    """Mixin providing (S,N)-implication NOT(x) OR y.
-    Requires the base class to implement OR(x, y) and NOT(x, y).
+    """Provides (S,N)-implication: NOT(x) OR y.
+
+    Requires the base class to implement OR(x, y) and NOT(x).
     """
 
     def IMPL(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
