@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ### MNIST - Standard Robustness
-COMMON_ARGS="--data-set=mnist --epochs=100 --batch-size=2048 --lr=1e-3 --save-imgs"
+COMMON_ARGS="--dataset=mnist --epochs=100 --batch-size=2048 --lr=1e-3 --save-imgs"
 PGD_ARGS="--oracle-steps=20 --oracle-restarts=30"
 
 # Standard Robustness with epsilon ball (eps=0.3, delta=0.05 are built into constraint)
@@ -13,7 +13,7 @@ for LOGIC in "" "--logic=DL2 --initial-dl-weight=1.5" "--logic=GD --initial-dl-w
 done
 
 ### ALSOMITRA - Examples (these constraints are not yet implemented in the new API)
-COMMON_ARGS="--data-set=alsomitra --epochs=100 --batch-size=64 --lr=1e-3"
+COMMON_ARGS="--dataset=alsomitra --epochs=100 --batch-size=64 --lr=1e-3"
 PGD_ARGS="--oracle-steps=50 --oracle-restarts=80"
 
 # Note: The following Alsomitra constraints need to be reimplemented for the new unified API
