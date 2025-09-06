@@ -46,6 +46,15 @@ class Attack(ABC):
         self.mean = torch.as_tensor(mean, device=device)
         self.std = torch.as_tensor(std, device=device)
 
+        # Create safe std tensor for computations to prevent NaN
+        zero_mask = self.std == 0.0
+        if zero_mask.any():
+            print(
+                f"Warning: Found {zero_mask.sum().item()} zero values in std normalization, replacing with 1.0 to prevent NaN"
+            )
+
+        self._safe_std = torch.where(zero_mask, torch.ones_like(self.std), self.std)
+
     def _expand(self, tensor: torch.Tensor) -> torch.Tensor:
         return tensor.view(*tensor.shape, *([1] * (self.ndim - tensor.ndim)))
 
@@ -108,7 +117,9 @@ class PGD(Attack):
         std: torch.Tensor | Tuple[float, ...] = (1.0,),
     ):
         super().__init__(logic, device, steps, restarts, mean, std)
-        self.step_size = step_size / torch.as_tensor(std, device=device)
+
+        # Use the safe std to prevent NaN step_size
+        self.step_size = step_size / self._safe_std
 
         print(
             f"PGD steps={self.steps} restarts={self.restarts} step_size={self.step_size}"
@@ -186,8 +197,8 @@ class PGD(Attack):
         """
         if not hasattr(self, "ndim"):
             self.ndim = x.ndim - 1  # Exclude batch dimension
-            self.min = self._expand((0.0 - self.mean) / self.std)
-            self.max = self._expand((1.0 - self.mean) / self.std)
+            self.min = self._expand((0.0 - self.mean) / self._safe_std)
+            self.max = self._expand((1.0 - self.mean) / self._safe_std)
 
         lo, hi = constraint.precondition.get_precondition(x)
         best_adv = None
@@ -401,8 +412,8 @@ class APGD(Attack):
         """
         if not hasattr(self, "ndim"):
             self.ndim = x.ndim - 1  # Exclude batch dimension
-            self.min = self._expand((0.0 - self.mean) / self.std)
-            self.max = self._expand((1.0 - self.mean) / self.std)
+            self.min = self._expand((0.0 - self.mean) / self._safe_std)
+            self.max = self._expand((1.0 - self.mean) / self._safe_std)
 
         lo, hi = constraint.precondition.get_precondition(x)
         before = N.training
