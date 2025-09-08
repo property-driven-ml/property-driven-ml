@@ -200,7 +200,7 @@ class PGD(Attack):
             self.min = self._expand((0.0 - self.mean) / self._safe_std)
             self.max = self._expand((1.0 - self.mean) / self._safe_std)
 
-        lo, hi = constraint.precondition.get_precondition(x)
+        lo, hi = constraint.precondition.get_bounds(x)
         best_adv = None
         best_loss = None
 
@@ -415,7 +415,7 @@ class APGD(Attack):
             self.min = self._expand((0.0 - self.mean) / self._safe_std)
             self.max = self._expand((1.0 - self.mean) / self._safe_std)
 
-        lo, hi = constraint.precondition.get_precondition(x)
+        lo, hi = constraint.precondition.get_bounds(x)
         before = N.training
         N.train(True)
 

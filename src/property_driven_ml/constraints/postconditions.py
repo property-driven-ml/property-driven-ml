@@ -3,7 +3,7 @@ import torch.nn.functional as F
 import torch.linalg as LA
 
 from abc import ABC, abstractmethod
-from typing import Callable
+from typing import Callable, Optional
 
 from ..logics.logic import Logic
 
@@ -137,8 +137,8 @@ class AlsomitraOutputPostcondition(Postcondition):
     def __init__(
         self,
         device: torch.device,
-        lo: float | torch.Tensor | None,
-        hi: float | torch.Tensor | None,
+        lo: Optional[float | torch.Tensor] = None,
+        hi: Optional[float | torch.Tensor] = None,
         normalize: bool = True,
     ):
         self.device = device
