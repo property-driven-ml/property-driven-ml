@@ -76,3 +76,31 @@ dev = [
     "pre-commit>=4.3.0",
     "twine>=6.1.0",
 ]
+test = [
+    "pytest>=8.0.0",
+    "pytest-cov>=6.0.0",
+    "pytest-xdist>=3.0.0",  # For parallel test execution
+]
+
+# Pytest configuration
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=property_driven_ml",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+    "--cov-report=xml",
+    "-ra",  # Show all test results except passed
+]
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (may take longer to run)",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+filterwarnings = [
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+]
