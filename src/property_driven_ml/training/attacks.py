@@ -169,7 +169,6 @@ class PGD(Attack):
 
             with torch.no_grad():
                 x_adv.add_(self.step_size * grad.sign_())
-                x_adv = torch.max(torch.min(x_adv, hi), lo)
                 x_adv.clamp_(min=self.min, max=self.max)
 
             x_adv = x_adv.detach()
