@@ -6,7 +6,7 @@ used throughout the framework.
 """
 
 from .util import safe_div, safe_pow, safe_zero, maybe
-from .safe_eval import safe_call, safe_bounds
+from .safe_eval import safe_call
 
 __all__ = [
     "safe_div",
@@ -14,5 +14,4 @@ __all__ = [
     "safe_zero",
     "maybe",
     "safe_call",
-    "safe_bounds",
 ]

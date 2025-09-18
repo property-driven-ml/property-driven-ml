@@ -17,7 +17,7 @@ class DL2(Logic):
     def __init__(self):
         super().__init__("DL2")
 
-    def NOT(self, _x: None) -> NoReturn:
+    def NOT(self, x: torch.Tensor) -> NoReturn:
         """DL2 logical negation.
 
         This function is unsupported and must not be called. DL2 does **not**
@@ -25,7 +25,7 @@ class DL2(Logic):
         inwards (e.g., ``NOT(x <= y)`` should be ``y < x``).
 
         Args:
-            _x: Tensor to negate.
+            x: Tensor to negate.
 
         Raises:
             NotImplementedError: Always. General negation is not supported.

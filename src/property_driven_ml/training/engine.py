@@ -59,12 +59,10 @@ def train(  # TODO: add task loss function as an argument
 
     N.train()
 
-    for _, (data, target, lo, hi) in enumerate(train_loader, start=1):
-        x, y_target, lo, hi = (
+    for _, (data, target) in enumerate(train_loader, start=1):
+        x, y_target = (
             data.to(device),
             target.to(device),
-            lo.to(device),
-            hi.to(device),
         )
 
         # forward pass
@@ -82,16 +80,12 @@ def train(  # TODO: add task loss function as an argument
             rmse = (denorm_scale * rmse.cpu()).squeeze()
             avg_pred_metric += rmse
 
-        # get random + adversarial samples
-        with torch.no_grad():
-            random = oracle.uniform_random_sample(lo, hi)
-
-        adv = oracle.attack(N, x, y_target, (lo, hi), constraint)
+        adv = oracle.attack(N, x, y_target, constraint)
 
         # forward pass for constraint accuracy (constraint satisfaction on random samples)
         with torch.no_grad():
             loss_random, sat_random = constraint.eval(
-                N, x, random, y_target, logic, reduction="mean"
+                N, x, None, y_target, logic, reduction="mean"
             )
 
         # forward pass for constraint security (constraint satisfaction on adversarial samples)
@@ -116,8 +110,10 @@ def train(  # TODO: add task loss function as an argument
 
         # save one original image, random sample, and adversarial sample image (for debugging, inspecting attacks)
         i = np.random.randint(0, x.size(0))
+        # Generate random sample from constraint for visualization
+        random_sample = constraint.uniform_sample(x[i : i + 1], 1).squeeze(0)
         images = dict()
-        images["input"], images["random"], images["adv"] = x[i], random[i], adv[i]
+        images["input"], images["random"], images["adv"] = x[i], random_sample, adv[i]
 
     if with_dl:
         grad_norm.renormalise()
@@ -177,12 +173,10 @@ def test(
 
     N.eval()
 
-    for _, (data, target, lo, hi) in enumerate(test_loader, start=1):
-        x, y_target, lo, hi = (
+    for _, (data, target) in enumerate(test_loader, start=1):
+        x, y_target = (
             data.to(device),
             target.to(device),
-            lo.to(device),
-            hi.to(device),
         )
         total_samples += x.size(0)
 
@@ -198,15 +192,13 @@ def test(
                 avg_pred_loss += F.mse_loss(y, y_target, reduction="sum")
 
             # get random samples (no grad)
-            random = oracle.uniform_random_sample(lo, hi)
-
         # get adversarial samples (requires grad)
-        adv = oracle.attack(N, x, y_target, (lo, hi), constraint)
+        adv = oracle.attack(N, x, y_target, constraint)
 
         # forward passes for constraint accuracy (constraint satisfaction on random samples) + constraint security (constraint satisfaction on adversarial samples)
         with torch.no_grad():
             loss_random, sat_random = constraint.eval(
-                N, x, random, y_target, logic, reduction="sum"
+                N, x, None, y_target, logic, reduction="sum"
             )
             loss_adv, sat_adv = constraint.eval(
                 N, x, adv, y_target, logic, reduction="sum"
@@ -220,8 +212,10 @@ def test(
 
         # save one original image, random sample, and adversarial sample image (for debugging, inspecting attacks)
         i = np.random.randint(0, x.size(0))
+        # Generate random sample from constraint for visualization
+        random_sample = constraint.uniform_sample(x[i : i + 1], 1).squeeze(0)
         images = dict()
-        images["input"], images["random"], images["adv"] = x[i], random[i], adv[i]
+        images["input"], images["random"], images["adv"] = x[i], random_sample, adv[i]
 
     if is_classification:
         pred_acc = correct.item() / total_samples

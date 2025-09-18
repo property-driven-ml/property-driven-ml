@@ -1,6 +1,6 @@
 [project]
 name = "property-driven-ml"
-version = "0.2.5"
+version = "0.2.7"
 description = "A general framework for property-driven machine learning with logical constraints"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -51,9 +51,6 @@ dev = [
     "mypy>=1.0",
     "twine>=6.1.0",
 ]
-
-[project.scripts]
-property-driven-ml = "property_driven_ml.cli:main"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

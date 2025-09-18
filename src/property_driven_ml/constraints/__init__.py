@@ -3,39 +3,33 @@ Constraint definitions for property-driven machine learning.
 
 This module provides constraint classes that define properties that
 machine learning models should satisfy.
+
+The new unified constraint architecture combines input regions and output
+constraints in a single class hierarchy, eliminating the need for separate
+BoundedDataset classes.
 """
 
 from .constraints import (
     Constraint,
     StandardRobustnessConstraint,
-    LipschitzRobustnessConstraint,
-    AlsomitraOutputConstraint,
-    GroupConstraint,
 )
-from .bounded_datasets import EpsilonBall, BoundedDataset, AlsomitraInputRegion
-from .base import SizedDataset
-
-from ..constraints.factories import (
-    CreateEpsilonBall,
-    CreateAlsomitraInputRegion,
-    CreateStandardRobustnessConstraint,
-    CreateLipschitzRobustnessConstraint,
-    CreateAlsomitraOutputConstraint,
+from .preconditions import EpsilonBall
+from .postconditions import (
+    StandardRobustnessPostcondition,
+    LipschitzRobustnessPostcondition,
+    GroupPostcondition,
+    AlsomitraOutputPostcondition,
 )
 
 __all__ = [
+    # Constraints
     "Constraint",
     "StandardRobustnessConstraint",
-    "LipschitzRobustnessConstraint",
-    "AlsomitraOutputConstraint",
-    "GroupConstraint",
+    # Preconditions
     "EpsilonBall",
-    "BoundedDataset",
-    "AlsomitraInputRegion",
-    "SizedDataset",
-    "CreateEpsilonBall",
-    "CreateStandardRobustnessConstraint",
-    "CreateLipschitzRobustnessConstraint",
-    "CreateAlsomitraOutputConstraint",
-    "CreateAlsomitraInputRegion",
+    # Postconditions
+    "StandardRobustnessPostcondition",
+    "LipschitzRobustnessPostcondition",
+    "GroupPostcondition",
+    "AlsomitraOutputPostcondition",
 ]
