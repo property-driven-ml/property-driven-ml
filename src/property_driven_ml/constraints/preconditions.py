@@ -4,8 +4,6 @@ import torch
 from abc import ABC, abstractmethod
 from typing import Tuple
 
-import torch.torch_version
-
 
 class Precondition(ABC):
     """
@@ -60,11 +58,20 @@ class EpsilonBall(Precondition):
         epsilon = self.epsilon * torch.ones_like(x, device=self.device)
 
         if self.std is not None:
-            if not (self.std.shape == x.shape or self.std.numel() == 1):
+            std = torch.as_tensor(self.std, device=x.device, dtype=x.dtype)
+
+            if std.numel() == 1:
+                scale = std  # scalar
+            elif std.ndim == 1 and std.shape[0] == x.shape[1]:
+                scale = std.view(1, -1, 1, 1)  # [C] -> [1, C, 1, 1]
+            elif std.shape == x.shape:
+                scale = std
+            else:
                 raise ValueError(
-                    "std must be either a scalar or have the same shape as data"
+                    "std must be either a scalar or have the same shape as data."
                 )
-            epsilon = epsilon * self.std
+
+            epsilon = epsilon / scale
 
         lo = x - epsilon
         hi = x + epsilon
