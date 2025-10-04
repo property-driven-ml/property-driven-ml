@@ -11,6 +11,8 @@ import torch
 from torch.utils.data import DataLoader, random_split
 from typing import Tuple
 
+from property_driven_ml.training.mode import Mode
+
 from examples.models import AlsomitraNet
 
 import pandas as pd
@@ -62,7 +64,11 @@ class AlsomitraDataset(torch.utils.data.Dataset):
 def create_alsomitra_datasets(
     batch_size: int,
 ) -> Tuple[
-    DataLoader, DataLoader, torch.nn.Module, Tuple[Tuple[float, ...], Tuple[float, ...]]
+    DataLoader,
+    DataLoader,
+    torch.nn.Module,
+    Tuple[Tuple[float, ...], Tuple[float, ...]],
+    Mode,
 ]:
     """
     Create Alsomitra train and test data loaders.
@@ -73,7 +79,7 @@ def create_alsomitra_datasets(
     Returns:
         Tuple of (train_loader, test_loader, model, (mean, std))
     """
-    dataset = AlsomitraDataset("examples/alsomitra_data_680.csv")
+    dataset = AlsomitraDataset("../data/alsomitra/alsomitra_data_680.csv")
     train_size = int(0.8 * len(dataset))
     test_size = len(dataset) - train_size
 
@@ -87,4 +93,4 @@ def create_alsomitra_datasets(
     model = AlsomitraNet()
     mean, std = (0.0,), (1.0,)  # No normalization needed for Alsomitra
 
-    return train_loader, test_loader, model, (mean, std)
+    return train_loader, test_loader, model, (mean, std), Mode.Regression

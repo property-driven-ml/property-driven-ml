@@ -39,7 +39,8 @@ class Postcondition(ABC):
 
 
 class StandardRobustnessPostcondition(Postcondition):
-    """postcondition ensuring model robustness to adversarial perturbations.
+    """
+    Postcondition ensuring model robustness to adversarial perturbations.
 
     Enforces that the change in output probabilities between original and
     adversarial inputs remains within a specified threshold delta.
@@ -118,6 +119,56 @@ class LipschitzRobustnessPostcondition(Postcondition):
         diff_y = LA.vector_norm(y_adv - y, ord=2, dim=1)
 
         return lambda logic: logic.LEQ(diff_y, self.L * diff_x)
+
+
+class OppositeFacesPostcondition(Postcondition):
+    """
+    Postcondition ensuring a physical-world inspired constraint on dice images.
+
+    Enforces that the network may not predict faces at the same time that are
+    on opposite sides of the die (e.g. faces 1 and 6).
+
+    Args:
+        device: PyTorch device for tensor computations.
+    """
+
+    def __init__(self, device: torch.device):
+        self.device = device
+        self.zero = torch.tensor(0.0, device=self.device)
+        self.opposingFacePairs = [(0, 5), (1, 4), (2, 3)]
+
+    def get_postcondition(
+        self,
+        N: torch.nn.Module,
+        x_adv: torch.Tensor,
+    ) -> Callable[[Logic], torch.Tensor]:
+        """Get postcondition for opposite faces.
+
+        Args:
+            N: Neural network model.
+            x_adv: Adversarial input tensor.
+
+        Returns:
+            Function that ensures network predictions align with real-world knowledge.
+        """
+        y_adv = N(x_adv)
+
+        # Note: label i is predicted if y_adv[i] > 0; equivalently, label i is not predicted if y_adv[i] <= 0.
+        return lambda logic: logic.AND(
+            *[
+                logic.OR(
+                    logic.AND(
+                        logic.GT(y_adv[:, i], self.zero),  # predicts label i ...
+                        logic.LEQ(y_adv[:, j], self.zero),  # ... but not label j
+                    ),
+                    logic.AND(
+                        logic.GT(y_adv[:, j], self.zero),  # predicts label j ...
+                        logic.LEQ(y_adv[:, i], self.zero),  # ... but not label i
+                    ),
+                )
+                for i, j in self.opposingFacePairs
+            ]
+        )
 
 
 class AlsomitraOutputPostcondition(Postcondition):

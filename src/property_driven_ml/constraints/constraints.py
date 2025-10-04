@@ -7,6 +7,7 @@ from .postconditions import (
     LipschitzRobustnessPostcondition,
     Postcondition,
     StandardRobustnessPostcondition,
+    OppositeFacesPostcondition,
     AlsomitraOutputPostcondition,
 )
 from .preconditions import (
@@ -113,7 +114,7 @@ class Constraint(ABC):
 
         Examples of supported postcondition signatures:
             get_postcondition(self, N, x, x_adv)              # StandardRobustness
-            get_postcondition(self, N, x_adv)                 # GroupConstraint
+            get_postcondition(self, N, x_adv)                 # GroupConstraint and OppositeFacesConstraint
             get_postcondition(self, N, x_adv, scale, centre)  # AlsomitraOutput
             get_postcondition(self, N, x, x_adv, y_target)    # Future constraints
 
@@ -238,10 +239,34 @@ class LipschitzRobustnessConstraint(Constraint):
             L: Lipschitz constant.
         """
         super().__init__(device)
-        self.precondition = EpsilonBall(
-            device, epsilon=epsilon
-        )  # TODO: more interesting precondition?
+        self.precondition = EpsilonBall(device, epsilon=epsilon)
         self.postcondition = LipschitzRobustnessPostcondition(device, L)
+
+
+class OppositeFacesConstraint(Constraint):
+    """Constraint ensuring a physical-world inspired constraint on dice images.
+
+    Combines an epsilon ball precondition with a constraint on the outputs
+    that enforces that the network may not predict faces at the same time that are
+    on opposite sides of the die (e.g. faces 1 and 6).
+    """
+
+    def __init__(
+        self,
+        device: torch.device,
+        epsilon: float,
+        std: Tuple[float, ...] | float | None = None,
+    ):
+        """Initialize OppositeFacesConstraint.
+
+        Args:
+            device: PyTorch device for tensor computations.
+            epsilon: Radius for epsilon ball precondition.
+            std: Standard deviation for epsilon scaling.
+        """
+        super().__init__(device)
+        self.precondition = EpsilonBall(device, epsilon, std)
+        self.postcondition = OppositeFacesPostcondition(device)
 
 
 class AlsomitraProperty1Constraint(Constraint):

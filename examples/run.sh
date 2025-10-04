@@ -12,6 +12,18 @@ for LOGIC in "" "--logic=DL2 --initial-dl-weight=1.5" "--logic=GD --initial-dl-w
     --experiment-name="StandardRobustness"
 done
 
+### Dice dataset - Opposite Faces
+COMMON_ARGS="--dataset=dice --epochs=100 --batch-size=24 --lr=1e-3 --save-imgs --save-onnx"
+PGD_ARGS="--oracle-steps=70 --oracle-restarts=30"
+
+# Opposite Faces with epsilon ball (eps=16/255 built into constraint)
+for LOGIC in "" "--logic=DL2 --logic=GD"; do
+  uv run python ../main.py $COMMON_ARGS $PGD_ARGS \
+    --constraint="OppositeFaces" \
+    $LOGIC \
+    --experiment-name="OppositeFaces"
+done
+
 ### ALSOMITRA - Examples (these constraints are not yet implemented in the new API)
 COMMON_ARGS="--dataset=alsomitra --epochs=100 --batch-size=64 --lr=1e-3"
 PGD_ARGS="--oracle-steps=50 --oracle-restarts=80"

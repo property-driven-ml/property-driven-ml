@@ -13,7 +13,10 @@ import torch.optim as optim
 from examples.datasets.alsomitra import AlsomitraDataset
 from examples.models import AlsomitraNet
 
-from property_driven_ml.constraints import StandardRobustnessConstraint
+from property_driven_ml.constraints import (
+    StandardRobustnessConstraint,
+    OppositeFacesConstraint,
+)
 from examples.datasets import create_dataset
 from property_driven_ml.utils.visualization import save_epoch_images
 
@@ -46,14 +49,17 @@ def main():
         "--epochs", type=int, required=True, help="number of epochs to train for"
     )
     parser.add_argument(
-        "--dataset", type=str, required=True, choices=["mnist", "alsomitra", "gtsrb"]
+        "--dataset",
+        type=str,
+        required=True,
+        choices=["mnist", "alsomitra", "dice", "gtsrb"],
     )
     parser.add_argument("--experiment-name", type=str, required=True)
     parser.add_argument(
         "--constraint",
         type=str,
         default="StandardRobustness",
-        choices=["StandardRobustness"],  # Will add more later
+        choices=["StandardRobustness", "OppositeFaces"],  # Will add more later
         help="which constraint to use",
     )
     parser.add_argument(
@@ -142,7 +148,7 @@ def main():
 
     ### Set up dataset ###
 
-    train_loader, test_loader, N, (mean, std) = create_dataset(
+    train_loader, test_loader, N, (mean, std), mode = create_dataset(
         args.dataset, args.batch_size
     )
 
@@ -154,6 +160,7 @@ def main():
     # Define allowed constraint classes
     output_allowed = {
         "StandardRobustness": StandardRobustnessConstraint,
+        "OppositeFaces": OppositeFacesConstraint,
         # "LipschitzRobustness": CreateLipschitzRobustnessConstraint,
         # "AlsomitraOutputConstraint": CreateAlsomitraOutputConstraint,
         # "Groups": CreateGroupConstraint,  # Keep local since it has dataset-specific logic
@@ -166,9 +173,15 @@ def main():
     if constraint_class == StandardRobustnessConstraint:
         constraint: constraints.Constraint = StandardRobustnessConstraint(
             device=device,
-            epsilon=0.3,  # Default epsilon for standard robustness
-            delta=0.05,  # Default delta for standard robustness
-            std=std,  # Use dataset std for epsilon scaling
+            epsilon=0.3,  # Default epsilon for standard robustness on MNIST
+            delta=0.05,  # Default delta for standard robustness on MNIST
+            std=std,  # epsilon is specified in terms of [0, 1] for MNIST but mean / std normalisation changes their domain
+        )
+    elif constraint_class == OppositeFacesConstraint:
+        constraint: constraints.Constraint = OppositeFacesConstraint(
+            device=device,
+            epsilon=24 / 255,  # TODO: how can this be changed from the command line?
+            std=std,  # epsilon is specified in terms of [0, 255] for dice images but mean / std normalisation changes their domain
         )
     else:
         raise NotImplementedError(f"Unhandeled constraint type: {constraint_class}")
@@ -222,6 +235,8 @@ def main():
     if args.experiment_name is None:
         if isinstance(constraint, constraints.StandardRobustnessConstraint):
             folder = "standard-robustness"
+        elif isinstance(constraint, constraints.OppositeFacesConstraint):
+            folder = "opposite-faces"
         # elif isinstance(constraint, constraints.LipschitzRobustnessConstraint): # TODO uncomment when implemented
         # folder = "lipschitz-robustness"
         # elif isinstance(constraint, constraints.GroupConstraint):
@@ -290,8 +305,8 @@ def main():
                         logic,
                         constraint,
                         with_dl,
-                        is_classification=True,
-                    )  # TODO: better check?
+                        mode,
+                    )
                 else:
                     train_info = train(
                         N,
@@ -303,7 +318,7 @@ def main():
                         logic,
                         constraint,
                         with_dl,
-                        is_classification=False,
+                        mode,  # TODO: or hardcode Mode.Regression here?
                         denorm_scale=AlsomitraDataset.S_out,
                     )
                 train_time = time.time() - start
@@ -327,7 +342,7 @@ def main():
                 oracle_test,
                 logic,
                 constraint,
-                is_classification=not isinstance(N, AlsomitraNet),
+                mode,
             )
             test_time = time.time() - start - train_time
 
@@ -362,7 +377,7 @@ def main():
             print("===")
 
     if args.save_onnx:
-        x, _, _, _ = next(iter(train_loader))
+        x, _ = next(iter(train_loader))
         dummy_input = torch.randn(args.batch_size, *x.shape[1:], requires_grad=True).to(
             device=device
         )
