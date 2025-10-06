@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, "*/*" ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  # Lightweight checks for feature branches and PRs
+  quick-check:
+    name: Quick compatibility check
+    runs-on: ubuntu-latest
+    if: github.ref != 'refs/heads/main'  # Skip on main branch pushes
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Test uv sync
+      run: uv sync
+
+    - name: Verify Python environment
+      run: uv run python --version
+
+    - name: Run basic import tests
+      run: |
+        uv run python -c "import property_driven_ml; print('Main package imports successfully')"
+        uv run python -c "from property_driven_ml.constraints import StandardRobustnessConstraint; print('Constraints module imports successfully')"
+        uv run python -c "from property_driven_ml.logics import BooleanLogic; print('Logics module imports successfully')"
+        uv run python -c "from property_driven_ml.training.attacks import PGD; print('Training module imports successfully')"
+
+    - name: Run quick tests (Ubuntu only)
+      run: uv run pytest tests/ -x --tb=short --maxfail=5
+
+  # Comprehensive cross-platform testing for main branch
+  test-compatibility:
+    name: Cross-platform compatibility
+    runs-on: ${{ matrix.os }}
+    if: github.ref == 'refs/heads/main'  # Only run on main branch
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Test uv sync (let uv manage Python version)
+      run: uv sync
+
+    - name: Verify Python environment
+      run: uv run python --version
+
+    - name: Run basic import tests
+      run: |
+        uv run python -c "import property_driven_ml; print('Main package imports successfully')"
+        uv run python -c "from property_driven_ml.constraints import StandardRobustnessConstraint; print('Constraints module imports successfully')"
+        uv run python -c "from property_driven_ml.logics import BooleanLogic; print('Logics module imports successfully')"
+        uv run python -c "from property_driven_ml.training.attacks import PGD; print('Training module imports successfully')"
+
+  test-full:
+    name: Full test suite
+    runs-on: ${{ matrix.os }}
+    if: github.ref == 'refs/heads/main'  # Only run on main branch
+    needs: test-compatibility  # Only run if compatibility tests pass
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Run pytest
+      run: uv run pytest tests/ -v --tb=short
+
+    - name: Run pytest with coverage (Linux only)
+      if: runner.os == 'Linux'
+      run: |
+        uv run pytest tests/ --cov=src/property_driven_ml --cov-report=xml --cov-report=html
+
+    - name: Upload coverage reports (Linux only)
+      if: runner.os == 'Linux'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+
+  lint:
+    name: Code quality checks
+    runs-on: ubuntu-latest
+    # Run on all branches but with different behavior
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Run Ruff linter
+      run: |
+        if uv run which ruff >/dev/null 2>&1; then
+          echo "Running Ruff linter..."
+          uv run ruff check src/ tests/
+        else
+          echo "Ruff not installed, skipping linting check"
+        fi
+
+    - name: Run Ruff formatter
+      run: |
+        if uv run which ruff >/dev/null 2>&1; then
+          echo "Running Ruff formatter check..."
+          uv run ruff format --check src/ tests/
+        else
+          echo "Ruff not installed, skipping format check"
+        fi
