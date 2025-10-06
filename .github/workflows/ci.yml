@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, "*/*" ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  test-compatibility:
+    name: Test uv sync compatibility
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false  # Don't cancel other jobs if one fails
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Test uv sync (let uv manage Python version)
+      run: uv sync
+
+    - name: Verify Python environment
+      run: uv run python --version
+
+    - name: Run basic import tests
+      run: |
+        uv run python -c "import property_driven_ml; print('✓ Main package imports successfully')"
+        uv run python -c "from property_driven_ml.constraints import StandardRobustnessConstraint; print('✓ Constraints module imports successfully')"
+        uv run python -c "from property_driven_ml.logics import BooleanLogic; print('✓ Logics module imports successfully')"
+        uv run python -c "from property_driven_ml.training.attacks import PGD; print('✓ Training module imports successfully')"
+
+  test-full:
+    name: Full test suite
+    runs-on: ${{ matrix.os }}
+    needs: test-compatibility  # Only run if compatibility tests pass
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Run pytest
+      run: uv run pytest tests/ -v --tb=short
+
+    - name: Run pytest with coverage (Linux only)
+      if: runner.os == 'Linux'
+      run: |
+        uv run pytest tests/ --cov=src/property_driven_ml --cov-report=xml --cov-report=html
+
+    - name: Upload coverage reports (Linux only)
+      if: runner.os == 'Linux'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+
+  lint:
+    name: Code quality checks
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Check code formatting with black (if available)
+      run: |
+        if uv run which black >/dev/null 2>&1; then
+          echo "Running black..."
+          uv run black --check src/ tests/
+        else
+          echo "Black not installed, skipping formatting check"
+        fi
+      continue-on-error: true
+
+    - name: Run flake8 (if available)
+      run: |
+        if uv run which flake8 >/dev/null 2>&1; then
+          echo "Running flake8..."
+          uv run flake8 src/ tests/
+        else
+          echo "Flake8 not installed, skipping linting"
+        fi
+      continue-on-error: true
+
+    - name: Check imports with isort (if available)
+      run: |
+        if uv run which isort >/dev/null 2>&1; then
+          echo "Running isort..."
+          uv run isort --check-only src/ tests/
+        else
+          echo "Isort not installed, skipping import sorting check"
+        fi
+      continue-on-error: true
