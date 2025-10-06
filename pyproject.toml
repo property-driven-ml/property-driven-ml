@@ -93,7 +93,6 @@ dev = [
     "pre-commit>=4.3.0",
     "twine>=6.1.0",
 ]
-<<<<<<< Updated upstream
 test = [
     "pytest>=8.0.0",
     "pytest-cov>=6.0.0",
@@ -122,6 +121,4 @@ filterwarnings = [
     "ignore::UserWarning",
     "ignore::DeprecationWarning",
 ]
-=======
 
->>>>>>> Stashed changes

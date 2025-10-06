@@ -1166,20 +1166,6 @@ dev = [
     { name = "twine" },
 ]
 
-<<<<<<< Updated upstream
-[package.dev-dependencies]
-dev = [
-    { name = "pre-commit" },
-    { name = "twine" },
-]
-test = [
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-xdist" },
-]
-
-=======
->>>>>>> Stashed changes
 [package.metadata]
 requires-dist = [
     { name = "idx2numpy", specifier = ">=1.2.3" },
