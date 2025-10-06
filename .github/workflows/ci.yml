@@ -33,10 +33,10 @@ jobs:
 
     - name: Run basic import tests
       run: |
-        uv run python -c "import property_driven_ml; print('✓ Main package imports successfully')"
-        uv run python -c "from property_driven_ml.constraints import StandardRobustnessConstraint; print('✓ Constraints module imports successfully')"
-        uv run python -c "from property_driven_ml.logics import BooleanLogic; print('✓ Logics module imports successfully')"
-        uv run python -c "from property_driven_ml.training.attacks import PGD; print('✓ Training module imports successfully')"
+        uv run python -c "import property_driven_ml; print( Main package imports successfully')"
+        uv run python -c "from property_driven_ml.constraints import StandardRobustnessConstraint; print( Constraints module imports successfully')"
+        uv run python -c "from property_driven_ml.logics import BooleanLogic; print('Logics module imports successfully')"
+        uv run python -c "from property_driven_ml.training.attacks import PGD; print('Training module imports successfully')"
 
   test-full:
     name: Full test suite
@@ -90,32 +90,20 @@ jobs:
     - name: Install dependencies
       run: uv sync
 
-    - name: Check code formatting with black (if available)
+    - name: Run Ruff linter
       run: |
-        if uv run which black >/dev/null 2>&1; then
-          echo "Running black..."
-          uv run black --check src/ tests/
+        if uv run which ruff >/dev/null 2>&1; then
+          echo "Running Ruff linter..."
+          uv run ruff check src/ tests/
         else
-          echo "Black not installed, skipping formatting check"
+          echo "Ruff not installed, skipping linting check"
         fi
-      continue-on-error: true
 
-    - name: Run flake8 (if available)
+    - name: Run Ruff formatter
       run: |
-        if uv run which flake8 >/dev/null 2>&1; then
-          echo "Running flake8..."
-          uv run flake8 src/ tests/
+        if uv run which ruff >/dev/null 2>&1; then
+          echo "Running Ruff formatter check..."
+          uv run ruff format --check src/ tests/
         else
-          echo "Flake8 not installed, skipping linting"
+          echo "Ruff not installed, skipping format check"
         fi
-      continue-on-error: true
-
-    - name: Check imports with isort (if available)
-      run: |
-        if uv run which isort >/dev/null 2>&1; then
-          echo "Running isort..."
-          uv run isort --check-only src/ tests/
-        else
-          echo "Isort not installed, skipping import sorting check"
-        fi
-      continue-on-error: true
