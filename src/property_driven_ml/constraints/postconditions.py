@@ -95,7 +95,7 @@ class LipschitzRobustnessPostcondition(Postcondition):
         L: Lipschitz constant bounding the rate of output change.
     """
 
-    def __init__(self, device: torch.device, L: float):
+    def __init__(self, device: torch.device, L: float | torch.Tensor):
         self.device = device
         self.L = torch.as_tensor(L, device=device)
 
@@ -132,9 +132,9 @@ class OppositeFacesPostcondition(Postcondition):
         device: PyTorch device for tensor computations.
     """
 
-    def __init__(self, device: torch.device):
+    def __init__(self, device: torch.device, delta: float | torch.Tensor):
         self.device = device
-        self.zero = torch.tensor(0.0, device=self.device)
+        self.delta = torch.as_tensor(delta, device=self.device)
         self.opposingFacePairs = [(0, 5), (1, 4), (2, 3)]
 
     def get_postcondition(
@@ -153,17 +153,17 @@ class OppositeFacesPostcondition(Postcondition):
         """
         y_adv = N(x_adv)
 
-        # Note: label i is predicted if y_adv[i] > 0; equivalently, label i is not predicted if y_adv[i] <= 0.
+        # Note: label i is predicted if y_adv[i] > delta; equivalently, label i is not predicted if y_adv[i] <= delta.
         return lambda logic: logic.AND(
             *[
                 logic.OR(
                     logic.AND(
-                        logic.GT(y_adv[:, i], self.zero),  # predicts label i ...
-                        logic.LEQ(y_adv[:, j], self.zero),  # ... but not label j
+                        logic.GT(y_adv[:, i], self.delta),  # predicts label i ...
+                        logic.LEQ(y_adv[:, j], self.delta),  # ... but not label j
                     ),
                     logic.AND(
-                        logic.GT(y_adv[:, j], self.zero),  # predicts label j ...
-                        logic.LEQ(y_adv[:, i], self.zero),  # ... but not label i
+                        logic.GT(y_adv[:, j], self.delta),  # predicts label j ...
+                        logic.LEQ(y_adv[:, i], self.delta),  # ... but not label i
                     ),
                 )
                 for i, j in self.opposingFacePairs

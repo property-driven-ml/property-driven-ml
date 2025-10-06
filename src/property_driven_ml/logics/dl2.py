@@ -31,7 +31,7 @@ class DL2(Logic):
             NotImplementedError: Always. General negation is not supported.
         """
         raise NotImplementedError(
-            "DL2 does not have general negation - rewrite the constraint to push negation inwards, e.g. NOT(x <= y) should be (y < x)"
+            "DL2 does not have general negation - rewrite the constraint to push negation inwards, e.g. NOT(LEQ(x, y)) should be GT(x, y)"
         )
 
     def NEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:

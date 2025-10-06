@@ -173,7 +173,7 @@ def main():
     if constraint_class == StandardRobustnessConstraint:
         constraint: constraints.Constraint = StandardRobustnessConstraint(
             device=device,
-            epsilon=0.3,  # Default epsilon for standard robustness on MNIST
+            epsilon=0.3,  # Default epsilon for standard robustness on MNIST TODO: how can this be changed from the command line?
             delta=0.05,  # Default delta for standard robustness on MNIST
             std=std,  # epsilon is specified in terms of [0, 1] for MNIST but mean / std normalisation changes their domain
         )
@@ -181,6 +181,7 @@ def main():
         constraint: constraints.Constraint = OppositeFacesConstraint(
             device=device,
             epsilon=24 / 255,  # TODO: how can this be changed from the command line?
+            delta=1.0,  # Default delta for OppositeFaces constraint
             std=std,  # epsilon is specified in terms of [0, 255] for dice images but mean / std normalisation changes their domain
         )
     else:
@@ -331,7 +332,7 @@ def main():
                 )
             else:
                 train_info = EpochInfoTrain(
-                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, None, None, None
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, None, None, None, None
                 )
                 train_time = 0.0
 

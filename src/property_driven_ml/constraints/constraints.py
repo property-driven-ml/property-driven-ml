@@ -254,7 +254,8 @@ class OppositeFacesConstraint(Constraint):
     def __init__(
         self,
         device: torch.device,
-        epsilon: float,
+        epsilon: float = 24 / 255,
+        delta: float = 1.0,
         std: Tuple[float, ...] | float | None = None,
     ):
         """Initialize OppositeFacesConstraint.
@@ -266,7 +267,7 @@ class OppositeFacesConstraint(Constraint):
         """
         super().__init__(device)
         self.precondition = EpsilonBall(device, epsilon, std)
-        self.postcondition = OppositeFacesPostcondition(device)
+        self.postcondition = OppositeFacesPostcondition(device, delta)
 
 
 class AlsomitraProperty1Constraint(Constraint):

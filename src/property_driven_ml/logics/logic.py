@@ -29,7 +29,7 @@ class Logic(ABC):
         """
         pass
 
-    @abstractmethod
+    # TODO: possibly not very clean, we expect deriving classes to override either EQ or NEQ (whatever suits them) but don't enforce it
     def NEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Inequality in this logic framework.
 
@@ -40,7 +40,7 @@ class Logic(ABC):
         Returns:
             Tensor representing x != y in this logic.
         """
-        pass
+        return self.NOT(self.EQ(x, y))
 
     def EQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Equality in this logic framework.

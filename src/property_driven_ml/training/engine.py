@@ -77,7 +77,10 @@ def train(  # TODO: add task loss function as an argument
         elif mode is Mode.MultiLabelClassification:
             # loss + 0/1 accuracy
             loss = F.binary_cross_entropy_with_logits(y, y_target)
-            pred = (y > 0.0).float()  # no sigmoid to make verification easier
+            # TODO: ugly!
+            pred = (
+                y > constraint.postcondition.delta
+            ).float()  # no sigmoid to make verification easier
             correct = torch.mean(torch.all(pred == y_target, dim=1).float())
             avg_pred_metric += correct
         elif mode is Mode.Regression:
@@ -201,7 +204,8 @@ def test(
                 avg_pred_loss += F.binary_cross_entropy_with_logits(
                     y, y_target, reduction="sum"
                 )
-                pred = (y > 0.0).float()
+                # TODO: ugly!
+                pred = (y > constraint.postcondition.delta).float()
                 correct += torch.sum(torch.all(pred == y_target, dim=1).float())
             elif mode is Mode.Regression:
                 avg_pred_loss += F.mse_loss(y, y_target, reduction="sum")
