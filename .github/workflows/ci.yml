@@ -33,8 +33,8 @@ jobs:
 
     - name: Run basic import tests
       run: |
-        uv run python -c "import property_driven_ml; print( Main package imports successfully')"
-        uv run python -c "from property_driven_ml.constraints import StandardRobustnessConstraint; print( Constraints module imports successfully')"
+        uv run python -c "import property_driven_ml; print('Main package imports successfully')"
+        uv run python -c "from property_driven_ml.constraints import StandardRobustnessConstraint; print('Constraints module imports successfully')"
         uv run python -c "from property_driven_ml.logics import BooleanLogic; print('Logics module imports successfully')"
         uv run python -c "from property_driven_ml.training.attacks import PGD; print('Training module imports successfully')"
 
