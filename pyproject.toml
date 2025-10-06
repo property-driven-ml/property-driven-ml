@@ -26,14 +26,15 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Operating System :: OS Independent",
 ]
+
 dependencies = [
-    "idx2numpy>=1.2.3",
-    "numpy>=2.3.2",
-    "onnx>=1.18.0",
-    "onnxruntime>=1.22.1",
-    "pandas>=2.3.1",
-    "torch>=2.5.1",
-    "torchvision>=0.17.0",
+  "idx2numpy>=1.2.3",
+  "numpy>=2.3.2",
+  "onnx>=1.18.0",
+  "onnxruntime>=1.22.1",
+  "pandas>=2.3.1",
+  "torch>=2.5.1",
+  "torchvision>=0.20.1",
 ]
 
 [project.urls]
@@ -42,15 +43,7 @@ Repository = "https://github.com/ggustavs/property-driven-ml"
 "Bug Tracker" = "https://github.com/ggustavs/property-driven-ml/issues"
 Documentation = "https://github.com/ggustavs/property-driven-ml#readme"
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
-    "black>=22.0",
-    "flake8>=5.0",
-    "mypy>=1.0",
-    "twine>=6.1.0",
-]
+
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
@@ -62,20 +55,45 @@ where = ["src"]
 [tool.setuptools.package-data]
 property_driven_ml = ["py.typed"]
 
+[tool.uv]
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+
 [[tool.uv.index]]
 name = "pytorch-cu121"
 url = "https://download.pytorch.org/whl/cu121"
 explicit = true
 
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [tool.uv.sources]
-torch = { index = "pytorch-cu121" }
-torchvision = { index = "pytorch-cu121" }
+torch = [
+  { index = "pytorch-cu121", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+  { index = "pytorch-cpu", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+  { index = "pytorch-cu121", marker = "sys_platform == 'win32' and (platform_machine == 'AMD64' or platform_machine == 'x86_64')" }
+]
+torchvision = [
+  { index = "pytorch-cu121", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+  { index = "pytorch-cpu", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
+  { index = "pytorch-cu121", marker = "sys_platform == 'win32' and (platform_machine == 'AMD64' or platform_machine == 'x86_64')" }
+]
 
 [dependency-groups]
 dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=22.0",
+    "flake8>=5.0",
+    "mypy>=1.0",
     "pre-commit>=4.3.0",
     "twine>=6.1.0",
 ]
+<<<<<<< Updated upstream
 test = [
     "pytest>=8.0.0",
     "pytest-cov>=6.0.0",
@@ -104,3 +122,6 @@ filterwarnings = [
     "ignore::UserWarning",
     "ignore::DeprecationWarning",
 ]
+=======
+
+>>>>>>> Stashed changes
