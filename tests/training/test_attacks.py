@@ -16,7 +16,7 @@ from property_driven_ml.constraints import StandardRobustnessConstraint
 
 class SimpleMLP(nn.Module):
     """Simple MLP for testing training components."""
-    
+
     def __init__(self, input_dim=4, hidden_dim=10, output_dim=3):
         super().__init__()
         self.layers = nn.Sequential(
@@ -24,7 +24,7 @@ class SimpleMLP(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_dim, output_dim),
         )
-    
+
     def forward(self, x):
         return self.layers(x)
 
@@ -41,17 +41,17 @@ class TestAttackBase:
         """Test that Attack handles zero std values safely."""
         logic = BooleanLogic()
         device = torch.device("cpu")
-        
+
         # Create attack with std containing zero values
         attack = PGD(
-            logic=logic, 
-            device=device, 
-            steps=1, 
-            restarts=1, 
+            logic=logic,
+            device=device,
+            steps=1,
+            restarts=1,
             step_size=0.01,
-            std=(0.0, 1.0, 0.0)  # Contains zeros
+            std=(0.0, 1.0, 0.0),  # Contains zeros
         )
-        
+
         # Should have safe_std that replaces zeros with ones
         assert torch.all(attack._safe_std > 0)
 
@@ -103,28 +103,28 @@ class TestPGDAttack:
         """Test PGD initialization with custom normalization parameters."""
         mean = (0.485, 0.456, 0.406)
         std = (0.229, 0.224, 0.225)
-        
+
         attack = PGD(
-            logic=logic, 
-            device=device, 
-            steps=10, 
-            restarts=2, 
+            logic=logic,
+            device=device,
+            steps=10,
+            restarts=2,
             step_size=0.02,
             mean=mean,
-            std=std
+            std=std,
         )
-        
+
         assert torch.allclose(attack.mean, torch.tensor(mean, device=device))
         assert torch.allclose(attack.std, torch.tensor(std, device=device))
 
     def test_pgd_expand_functionality(self, logic, device):
         """Test the expand utility function."""
         attack = PGD(logic=logic, device=device, steps=5, restarts=1, step_size=0.01)
-        
+
         # Test expanding a 1D tensor
         tensor_1d = torch.tensor([1.0, 2.0, 3.0], device=device)
         attack.ndim = 3  # Set ndim for testing
-        
+
         expanded = attack._expand(tensor_1d)
         expected_shape = (3, 1, 1)  # Original shape + (ndim - original_ndim) ones
         assert expanded.shape == expected_shape
@@ -132,31 +132,33 @@ class TestPGDAttack:
     def test_pgd_uniform_random_sample(self, logic, device):
         """Test uniform random sampling within bounds."""
         attack = PGD(logic=logic, device=device, steps=5, restarts=1, step_size=0.01)
-        
+
         # Set required attributes for testing
         attack.ndim = 2
         attack.min = torch.tensor([-1.0, -1.0], device=device)
         attack.max = torch.tensor([1.0, 1.0], device=device)
-        
+
         lo = torch.tensor([-0.5, -0.3], device=device)
         hi = torch.tensor([0.5, 0.7], device=device)
-        
+
         sample = attack.uniform_random_sample(lo, hi)
-        
+
         # Check that sample is within bounds
         assert torch.all(sample >= lo)
         assert torch.all(sample <= hi)
         assert torch.all(sample >= attack.min)
         assert torch.all(sample <= attack.max)
 
-    def test_pgd_attack_functionality(self, logic, device, simple_model, constraint, sample_batch):
+    def test_pgd_attack_functionality(
+        self, logic, device, simple_model, constraint, sample_batch
+    ):
         """Test that PGD attack can be called and produces outputs of correct shape."""
         attack = PGD(logic=logic, device=device, steps=2, restarts=1, step_size=0.01)
         x, y = sample_batch
-        
+
         # Enable gradients for attack computation
         x = x.requires_grad_(True)
-        
+
         try:
             # Attack should return adversarial examples with same shape as input
             x_adv = attack.attack(simple_model, x, y, constraint)
@@ -214,22 +216,24 @@ class TestAPGDAttack:
             steps=50,
             restarts=3,
             mean=(0.5, 0.5),
-            std=(0.2, 0.2)
+            std=(0.2, 0.2),
         )
-        
+
         assert attack.steps == 50
         assert attack.restarts == 3
         assert torch.allclose(attack.mean, torch.tensor([0.5, 0.5], device=device))
         assert torch.allclose(attack.std, torch.tensor([0.2, 0.2], device=device))
 
-    def test_apgd_attack_functionality(self, logic, device, simple_model, constraint, sample_batch):
+    def test_apgd_attack_functionality(
+        self, logic, device, simple_model, constraint, sample_batch
+    ):
         """Test that APGD attack can be called and produces outputs of correct shape."""
         attack = APGD(logic=logic, device=device, steps=2, restarts=1)
         x, y = sample_batch
-        
+
         # Enable gradients for attack computation
         x = x.requires_grad_(True)
-        
+
         try:
             # Attack should return adversarial examples with same shape as input
             x_adv = attack.attack(simple_model, x, y, constraint)
@@ -272,23 +276,25 @@ class TestGradNorm:
         assert grad_norm.device == device
         assert grad_norm.alpha == 0.12
         assert grad_norm.initial_loss is None
-        
+
         # Check initial weights
         assert grad_norm.weights.shape == torch.Size([2])
         assert grad_norm.weights.requires_grad
 
-    def test_grad_norm_with_custom_initial_weight(self, simple_model, device, optimizer):
+    def test_grad_norm_with_custom_initial_weight(
+        self, simple_model, device, optimizer
+    ):
         """Test GradNorm initialization with custom initial weight."""
         initial_weight = 2.5
         grad_norm = GradNorm(
-            N=simple_model, 
-            device=device, 
-            optimizer=optimizer, 
-            lr=0.02, 
+            N=simple_model,
+            device=device,
+            optimizer=optimizer,
+            lr=0.02,
             alpha=0.15,
-            initial_dl_weight=initial_weight
+            initial_dl_weight=initial_weight,
         )
-        
+
         # Weights should be [2.0 - initial_weight, initial_weight]
         expected_weights = torch.tensor([2.0 - initial_weight, initial_weight])
         assert torch.allclose(grad_norm.weights.data, expected_weights)
@@ -298,85 +304,87 @@ class TestGradNorm:
         grad_norm = GradNorm(
             N=simple_model, device=device, optimizer=optimizer, lr=0.01, alpha=0.12
         )
-        
+
         # Weights should require gradients
         assert grad_norm.weights.requires_grad
-        
+
         # Should have optimizer for weights
         assert grad_norm.optimizer_weights is not None
         assert len(grad_norm.optimizer_weights.param_groups) == 1
 
-    def test_grad_norm_balance_functionality(self, simple_model, device, optimizer, sample_batch):
+    def test_grad_norm_balance_functionality(
+        self, simple_model, device, optimizer, sample_batch
+    ):
         """Test the balance method functionality."""
         grad_norm = GradNorm(
             N=simple_model, device=device, optimizer=optimizer, lr=0.01, alpha=0.12
         )
-        
+
         x, y_true = sample_batch
-        
+
         # Create some sample losses
         outputs = simple_model(x)
         ce_loss = F.cross_entropy(outputs, y_true)
         dl_loss = torch.tensor(0.5, requires_grad=True)
-        
-        # Store initial weights
-        initial_weights = grad_norm.weights.data.clone()
-        
+
         # Test balance method doesn't crash
         result = grad_norm.balance(ce_loss, dl_loss)
-        
+
         # Method returns None but should update internal state
         assert result is None
-        
+
         # Weights should potentially be updated (or at least remain valid)
         assert torch.all(torch.isfinite(grad_norm.weights))
         assert grad_norm.weights.requires_grad
 
-    def test_grad_norm_initial_loss_tracking(self, simple_model, device, optimizer, sample_batch):
+    def test_grad_norm_initial_loss_tracking(
+        self, simple_model, device, optimizer, sample_batch
+    ):
         """Test that GradNorm tracks initial loss correctly."""
         grad_norm = GradNorm(
             N=simple_model, device=device, optimizer=optimizer, lr=0.01, alpha=0.12
         )
-        
+
         x, y_true = sample_batch
         outputs = simple_model(x)
         ce_loss = F.cross_entropy(outputs, y_true)
         dl_loss = torch.tensor(0.5, requires_grad=True)
-        
+
         # Initially should be None
         assert grad_norm.initial_loss is None
-        
+
         # After first balance call, should store initial loss
         grad_norm.balance(ce_loss, dl_loss)
         assert grad_norm.initial_loss is not None
-        
+
         # Should be a tensor with 2 elements (for 2 losses)
         assert isinstance(grad_norm.initial_loss, torch.Tensor)
         assert grad_norm.initial_loss.shape == torch.Size([2])
 
-    def test_grad_norm_weight_updates(self, simple_model, device, optimizer, sample_batch):
+    def test_grad_norm_weight_updates(
+        self, simple_model, device, optimizer, sample_batch
+    ):
         """Test that GradNorm can update weights through optimization."""
         grad_norm = GradNorm(
             N=simple_model, device=device, optimizer=optimizer, lr=0.01, alpha=0.12
         )
-        
+
         x, y_true = sample_batch
-        
-        # Store initial weights
-        initial_weights = grad_norm.weights.data.clone()
-        
+
         # Perform several balance operations
         for i in range(2):  # Reduce iterations to avoid gradient issues
             outputs = simple_model(x)
             ce_loss = F.cross_entropy(outputs, y_true)
-            dl_loss = torch.tensor(0.1 * (i + 1), requires_grad=True)  # Simple varying loss
-            
+            dl_loss = torch.tensor(
+                0.1 * (i + 1), requires_grad=True
+            )  # Simple varying loss
+
             # Clear previous gradients
             optimizer.zero_grad()
-            
+
             # The balance method handles the optimization internally
             grad_norm.balance(ce_loss, dl_loss)
-        
+
         # Weights should still be valid tensors after balance operations
         assert torch.all(torch.isfinite(grad_norm.weights))
         assert grad_norm.weights.requires_grad

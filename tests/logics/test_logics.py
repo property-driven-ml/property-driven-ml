@@ -22,16 +22,16 @@ class TestLogicBase:
     def test_logic_base_cannot_be_instantiated(self):
         """Test that Logic is an abstract base class."""
         with pytest.raises(TypeError):
-            Logic() # type: ignore
+            Logic()  # type: ignore
 
     def test_logic_name_property(self):
         """Test that concrete logics have proper names."""
         boolean_logic = BooleanLogic()
         assert boolean_logic.name == "bool"
-        
+
         fuzzy_logic = GoedelFuzzyLogic()
         assert fuzzy_logic.name == "GD"
-        
+
         dl2_logic = DL2()
         assert dl2_logic.name == "DL2"
 
@@ -47,26 +47,28 @@ class TestBooleanLogic:
     def sample_tensors(self):
         """Create sample boolean tensors for testing."""
         return {
-            'all_true': torch.tensor([True, True, True, True]),
-            'all_false': torch.tensor([False, False, False, False]),
-            'mixed': torch.tensor([True, False, True, False]),
-            'mixed2': torch.tensor([False, True, False, True]),
+            "all_true": torch.tensor([True, True, True, True]),
+            "all_false": torch.tensor([False, False, False, False]),
+            "mixed": torch.tensor([True, False, True, False]),
+            "mixed2": torch.tensor([False, True, False, True]),
         }
 
     def test_boolean_logic_basic_operations(self, boolean_logic, sample_tensors):
         """Test basic boolean operations work correctly."""
         # Test AND operation
-        result_and = boolean_logic.AND2(sample_tensors['mixed'], sample_tensors['mixed2'])
+        result_and = boolean_logic.AND2(
+            sample_tensors["mixed"], sample_tensors["mixed2"]
+        )
         expected_and = torch.tensor([False, False, False, False])
         assert torch.equal(result_and, expected_and)
 
         # Test OR operation
-        result_or = boolean_logic.OR2(sample_tensors['mixed'], sample_tensors['mixed2'])
+        result_or = boolean_logic.OR2(sample_tensors["mixed"], sample_tensors["mixed2"])
         expected_or = torch.tensor([True, True, True, True])
         assert torch.equal(result_or, expected_or)
 
         # Test NOT operation
-        result_not = boolean_logic.NOT(sample_tensors['mixed'])
+        result_not = boolean_logic.NOT(sample_tensors["mixed"])
         expected_not = torch.tensor([False, True, False, True])
         assert torch.equal(result_not, expected_not)
 
@@ -87,7 +89,11 @@ class TestBooleanLogic:
 
     def test_boolean_logic_variadic_operations(self, boolean_logic, sample_tensors):
         """Test variadic AND and OR operations."""
-        tensors = [sample_tensors['mixed'], sample_tensors['mixed2'], sample_tensors['all_true']]
+        tensors = [
+            sample_tensors["mixed"],
+            sample_tensors["mixed2"],
+            sample_tensors["all_true"],
+        ]
 
         # Test variadic AND
         result_and = boolean_logic.AND(*tensors)
@@ -130,9 +136,9 @@ class TestGoedelFuzzyLogic:
     def fuzzy_values(self):
         """Create sample fuzzy values for testing."""
         return {
-            'low': torch.tensor([0.0, 0.1, 0.2, 0.3]),
-            'mid': torch.tensor([0.4, 0.5, 0.6, 0.7]),
-            'high': torch.tensor([0.7, 0.8, 0.9, 1.0]),
+            "low": torch.tensor([0.0, 0.1, 0.2, 0.3]),
+            "mid": torch.tensor([0.4, 0.5, 0.6, 0.7]),
+            "high": torch.tensor([0.7, 0.8, 0.9, 1.0]),
         }
 
     def test_godel_range_validation(self, godel_logic, fuzzy_values):
@@ -146,7 +152,7 @@ class TestGoedelFuzzyLogic:
         """Test Gödel AND (minimum) operation."""
         x = torch.tensor([0.3, 0.7, 0.2, 0.9])
         y = torch.tensor([0.5, 0.4, 0.8, 0.6])
-        
+
         result = godel_logic.AND2(x, y)
         expected = torch.minimum(x, y)
         assert torch.allclose(result, expected)
@@ -155,7 +161,7 @@ class TestGoedelFuzzyLogic:
         """Test Gödel OR (maximum) operation."""
         x = torch.tensor([0.3, 0.7, 0.2, 0.9])
         y = torch.tensor([0.5, 0.4, 0.8, 0.6])
-        
+
         result = godel_logic.OR2(x, y)
         expected = torch.maximum(x, y)
         assert torch.allclose(result, expected)
@@ -164,12 +170,12 @@ class TestGoedelFuzzyLogic:
         """Test Gödel implication operation."""
         x = torch.tensor([0.3, 0.8, 0.5, 0.9])
         y = torch.tensor([0.7, 0.4, 0.5, 0.2])
-        
+
         result = godel_logic.IMPL(x, y)
-        
+
         # Should be in [0, 1] range
         assert torch.all(result >= 0.0) and torch.all(result <= 1.0)
-        
+
         # Gödel implication: 1.0 where x < y, otherwise y
         assert result[0] == 1.0  # 0.3 < 0.7, so should be 1
         assert result[2] == 0.5  # 0.5 == 0.5, not <, so should be y (0.5)
@@ -178,12 +184,12 @@ class TestGoedelFuzzyLogic:
         """Test Gödel fuzzy LEQ operation."""
         x = torch.tensor([2.0, -1.0, 3.0, 0.0])
         y = torch.tensor([1.0, 2.0, 3.0, 1.0])
-        
+
         result = godel_logic.LEQ(x, y)
-        
+
         # Should be in [0, 1] range
         assert torch.all(result >= 0.0) and torch.all(result <= 1.0)
-        
+
         # When x <= y, result should be close to 1
         assert result[2] > 0.9  # 3.0 <= 3.0
         assert result[3] > 0.9  # 0.0 <= 1.0
@@ -195,12 +201,12 @@ class TestGoedelFuzzyLogic:
             torch.tensor([0.5, 0.4, 0.8]),
             torch.tensor([0.2, 0.9, 0.6]),
         ]
-        
+
         # Test variadic AND (should be minimum across all)
         result_and = godel_logic.AND(*tensors)
         expected_and = torch.tensor([0.2, 0.4, 0.5])
         assert torch.allclose(result_and, expected_and)
-        
+
         # Test variadic OR (should be maximum across all)
         result_or = godel_logic.OR(*tensors)
         expected_or = torch.tensor([0.5, 0.9, 0.8])
@@ -218,7 +224,7 @@ class TestLukasiewiczFuzzyLogic:
         """Test Łukasiewicz AND operation."""
         x = torch.tensor([0.3, 0.7, 0.8, 0.2])
         y = torch.tensor([0.5, 0.4, 0.9, 0.1])
-        
+
         result = lukasiewicz_logic.AND2(x, y)
         expected = torch.clamp(x + y - 1.0, min=0.0)
         assert torch.allclose(result, expected)
@@ -227,7 +233,7 @@ class TestLukasiewiczFuzzyLogic:
         """Test Łukasiewicz OR operation."""
         x = torch.tensor([0.3, 0.7, 0.8, 0.2])
         y = torch.tensor([0.5, 0.4, 0.9, 0.1])
-        
+
         result = lukasiewicz_logic.OR2(x, y)
         expected = torch.clamp(x + y, max=1.0)
         assert torch.allclose(result, expected)
@@ -236,7 +242,7 @@ class TestLukasiewiczFuzzyLogic:
         """Test Łukasiewicz implication operation."""
         x = torch.tensor([0.3, 0.8, 0.5, 0.9])
         y = torch.tensor([0.7, 0.4, 0.5, 0.2])
-        
+
         result = lukasiewicz_logic.IMPL(x, y)
         expected = torch.clamp(1.0 - x + y, max=1.0)
         assert torch.allclose(result, expected)
@@ -253,11 +259,11 @@ class TestKleeneDienesFuzzyLogic:
         """Test Kleene-Dienes operations."""
         x = torch.tensor([0.3, 0.7, 0.8, 0.2])
         y = torch.tensor([0.5, 0.4, 0.9, 0.1])
-        
+
         # Test AND operation
         and_result = kd_logic.AND2(x, y)
         assert torch.all(and_result >= 0.0) and torch.all(and_result <= 1.0)
-        
+
         # Test OR operation
         or_result = kd_logic.OR2(x, y)
         assert torch.all(or_result >= 0.0) and torch.all(or_result <= 1.0)
@@ -266,9 +272,9 @@ class TestKleeneDienesFuzzyLogic:
         """Test Kleene-Dienes implication operation."""
         x = torch.tensor([0.3, 0.8, 0.5, 0.9])
         y = torch.tensor([0.7, 0.4, 0.5, 0.2])
-        
+
         result = kd_logic.IMPL(x, y)
-        
+
         # Should be in [0, 1] range
         assert torch.all(result >= 0.0) and torch.all(result <= 1.0)
 
@@ -299,17 +305,17 @@ class TestDL2Logic:
         """Test DL2 arithmetic-based operations."""
         x = torch.tensor([0.3, 0.7, 1.0, 2.0])
         y = torch.tensor([0.5, 0.4, 1.0, 0.5])
-        
+
         # Test AND operation (addition in DL2)
         and_result = dl2_logic.AND2(x, y)
         expected_and = x + y
         assert torch.allclose(and_result, expected_and)
-        
+
         # Test OR operation (multiplication in DL2)
         or_result = dl2_logic.OR2(x, y)
         expected_or = x * y
         assert torch.allclose(or_result, expected_or)
-        
+
         # Test LEQ operation
         leq_result = dl2_logic.LEQ(x, y)
         expected_leq = torch.clamp(x - y, min=0.0)
@@ -320,14 +326,14 @@ class TestDL2Logic:
         x = torch.tensor([0.3, 0.7], requires_grad=True)
         y = torch.tensor([0.5, 0.4], requires_grad=True)
         z = torch.tensor([0.8, 0.2], requires_grad=True)
-        
+
         # Complex expression using operations that DL2 actually supports
         and_result = dl2_logic.AND2(x, y)  # x + y
         or_result = dl2_logic.OR2(and_result, z)  # (x + y) * z
-        
+
         loss = or_result.sum()
         loss.backward()
-        
+
         # All tensors should have gradients
         assert x.grad is not None and torch.all(torch.isfinite(x.grad))
         assert y.grad is not None and torch.all(torch.isfinite(y.grad))
@@ -345,17 +351,17 @@ class TestSTLLogic:
         """Test basic STL operations."""
         x = torch.tensor([0.3, -0.5, 0.8, -0.2])
         y = torch.tensor([0.1, 0.7, -0.4, 0.9])
-        
+
         # Test variadic AND operation (smooth minimum)
         and_result = stl_logic.AND(x, y)
         # Should approximate minimum, but may not be exact due to smoothing
         assert and_result.shape == x.shape
-        
+
         # Test variadic OR operation
         or_result = stl_logic.OR(x, y)
         # Should approximate maximum, but may not be exact due to smoothing
         assert or_result.shape == x.shape
-        
+
         # Test NOT operation (negation)
         not_result = stl_logic.NOT(x)
         expected_not = -x
@@ -365,7 +371,7 @@ class TestSTLLogic:
         """Test STL comparison operations."""
         x = torch.tensor([1.0, 2.0, 3.0, -1.0])
         y = torch.tensor([1.5, 1.0, 3.0, 0.0])
-        
+
         # Test LEQ operation
         leq_result = stl_logic.LEQ(x, y)
         expected_leq = y - x  # In STL, x <= y is equivalent to y - x >= 0
@@ -374,16 +380,16 @@ class TestSTLLogic:
     def test_stl_preserves_real_values(self, stl_logic):
         """Test that STL operations preserve real-valued semantics."""
         x = torch.tensor([-2.0, -0.5, 0.0, 0.5, 2.0])
-        
+
         # STL should work with any real values, not just [0,1]
         not_result = stl_logic.NOT(x)
         assert torch.allclose(not_result, -x)
-        
+
         # Test with negative values using variadic operations
         y = torch.tensor([-1.0, -0.3, 0.1, 0.7, 1.5])
         and_result = stl_logic.AND(x, y)
         or_result = stl_logic.OR(x, y)
-        
+
         # Results should be smooth approximations of min/max
         assert and_result.shape == x.shape
         assert or_result.shape == x.shape
@@ -403,13 +409,13 @@ class TestFuzzyLogicWithSNImplication:
         """Test that (S,N)-implication is a valid implication."""
         x = torch.tensor([0.3, 0.7, 0.5, 0.9])
         y = torch.tensor([0.7, 0.4, 0.5, 0.2])
-        
+
         # Test the actual IMPL method produces valid results
         actual_impl = sn_logic.IMPL(x, y)
-        
+
         # Should be in [0, 1] range
         assert torch.all(actual_impl >= 0.0) and torch.all(actual_impl <= 1.0)
-        
+
         # Check basic implication properties for Gödel logic
         # When x < y, implication should be 1
         assert actual_impl[0] == 1.0  # 0.3 < 0.7
@@ -423,25 +429,28 @@ class TestLogicConsistency:
     def logics(self):
         """Create instances of different logic types."""
         return {
-            'boolean': BooleanLogic(),
-            'godel': GoedelFuzzyLogic(),
-            'lukasiewicz': LukasiewiczFuzzyLogic(),
-            'kleene_dienes': KleeneDienesFuzzyLogic(),
-            'dl2': DL2(),
-            'stl': STL(),
+            "boolean": BooleanLogic(),
+            "godel": GoedelFuzzyLogic(),
+            "lukasiewicz": LukasiewiczFuzzyLogic(),
+            "kleene_dienes": KleeneDienesFuzzyLogic(),
+            "dl2": DL2(),
+            "stl": STL(),
         }
 
     def test_not_involution(self, logics):
         """Test that NOT(NOT(x)) ≈ x for appropriate logics."""
         x = torch.tensor([0.3, 0.7, 0.1, 0.9])
-        
+
         for name, logic in logics.items():
-            if name == 'boolean':
+            if name == "boolean":
                 # For boolean, use boolean values
                 bool_x = torch.tensor([True, False, True, False])
                 double_not = logic.NOT(logic.NOT(bool_x))
                 assert torch.equal(double_not, bool_x), f"Failed for {name}"
-            elif name not in ['stl', 'dl2']:  # STL and DL2 have different negation semantics
+            elif name not in [
+                "stl",
+                "dl2",
+            ]:  # STL and DL2 have different negation semantics
                 double_not = logic.NOT(logic.NOT(x))
                 assert torch.allclose(double_not, x, atol=1e-6), f"Failed for {name}"
 
@@ -449,23 +458,27 @@ class TestLogicConsistency:
         """Test De Morgan's laws where applicable."""
         x = torch.tensor([0.3, 0.7])
         y = torch.tensor([0.5, 0.4])
-        
+
         for name, logic in logics.items():
-            if name == 'boolean':
+            if name == "boolean":
                 bool_x = torch.tensor([True, False])
                 bool_y = torch.tensor([False, True])
-                
+
                 # NOT(x AND y) = NOT(x) OR NOT(y)
                 left_side = logic.NOT(logic.AND2(bool_x, bool_y))
                 right_side = logic.OR2(logic.NOT(bool_x), logic.NOT(bool_y))
-                assert torch.equal(left_side, right_side), f"De Morgan AND failed for {name}"
-                
+                assert torch.equal(left_side, right_side), (
+                    f"De Morgan AND failed for {name}"
+                )
+
                 # NOT(x OR y) = NOT(x) AND NOT(y)
                 left_side = logic.NOT(logic.OR2(bool_x, bool_y))
                 right_side = logic.AND2(logic.NOT(bool_x), logic.NOT(bool_y))
-                assert torch.equal(left_side, right_side), f"De Morgan OR failed for {name}"
-            
-            elif name in ['godel', 'lukasiewicz', 'kleene_dienes']:
+                assert torch.equal(left_side, right_side), (
+                    f"De Morgan OR failed for {name}"
+                )
+
+            elif name in ["godel", "lukasiewicz", "kleene_dienes"]:
                 # For fuzzy logics, De Morgan's laws hold approximately
                 # NOT(x AND y) ≈ NOT(x) OR NOT(y)
                 left_side = logic.NOT(logic.AND2(x, y))
