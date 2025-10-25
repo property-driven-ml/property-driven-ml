@@ -2,8 +2,10 @@ import torch
 import torch.nn.functional as F
 import torch.linalg as LA
 
+import numpy as np
+
 from abc import ABC, abstractmethod
-from typing import Callable, Optional
+from typing import Callable
 
 from ..logics.logic import Logic
 
@@ -132,9 +134,9 @@ class OppositeFacesPostcondition(Postcondition):
         device: PyTorch device for tensor computations.
     """
 
-    def __init__(self, device: torch.device, delta: float | torch.Tensor):
+    def __init__(self, device: torch.device):
         self.device = device
-        self.delta = torch.as_tensor(delta, device=self.device)
+        self.delta = torch.tensor(0.0, device=self.device)
         self.opposingFacePairs = [(0, 5), (1, 4), (2, 3)]
 
     def get_postcondition(
@@ -151,20 +153,14 @@ class OppositeFacesPostcondition(Postcondition):
         Returns:
             Function that ensures network predictions align with real-world knowledge.
         """
+
         y_adv = N(x_adv)
 
-        # Note: label i is predicted if y_adv[i] > delta; equivalently, label i is not predicted if y_adv[i] <= delta.
         return lambda logic: logic.AND(
             *[
                 logic.OR(
-                    logic.AND(
-                        logic.GT(y_adv[:, i], self.delta),  # predicts label i ...
-                        logic.LEQ(y_adv[:, j], self.delta),  # ... but not label j
-                    ),
-                    logic.AND(
-                        logic.GT(y_adv[:, j], self.delta),  # predicts label j ...
-                        logic.LEQ(y_adv[:, i], self.delta),  # ... but not label i
-                    ),
+                    logic.LEQ(y_adv[:, i], self.delta),
+                    logic.LEQ(y_adv[:, j], self.delta),
                 )
                 for i, j in self.opposingFacePairs
             ]
@@ -175,40 +171,54 @@ class AlsomitraOutputPostcondition(Postcondition):
     """
     Postcondition ensuring model outputs fall within specified bounds.
 
-    Enforces that neural network outputs remain within lower and upper bounds,
-    with optional normalization to handle different output scales.
+    Enforces that neural network outputs remain within lower and upper bounds.
 
     Args:
         device: PyTorch device for tensor computations.
-        lo: Lower bound for outputs (None means no lower bound).
-        hi: Upper bound for outputs (None means no upper bound).
-        normalize: Whether to normalize bounds to output statistics.
+        lo: Lower bound for outputs (nan means no lower bound).
+        hi: Upper bound for outputs (nan means no upper bound).
     """
 
     def __init__(
         self,
         device: torch.device,
-        lo: Optional[float | torch.Tensor] = None,
-        hi: Optional[float | torch.Tensor] = None,
-        normalize: bool = True,
+        lo: float | torch.Tensor = np.nan,
+        hi: float | torch.Tensor = np.nan,
     ):
         self.device = device
-        # Store raw bounds and normalization flag
-        self.lo_raw = lo
-        self.hi_raw = hi
-        self.normalize = normalize
+        self.min = 0.181
+        self.max = 0.193
+        self.lo = self.normalize(torch.as_tensor(lo, device=device))
+        self.hi = self.normalize(torch.as_tensor(hi, device=device))
 
-        # If normalization is disabled (for backwards compatibility), store as tensors directly
-        if not normalize:
-            self.lo = torch.as_tensor(lo, device=device) if lo is not None else None
-            self.hi = torch.as_tensor(hi, device=device) if hi is not None else None
+    def normalize(self, y: torch.Tensor) -> torch.Tensor:
+        """
+        Normalize the output tensor y based on the min and max bounds.
+
+        Args:
+            y: Output tensor to normalize.
+
+        Returns:
+            Normalized tensor.
+        """
+        return (y - self.min) / (self.max - self.min)
+
+    def denormalize(self, y: torch.Tensor) -> torch.Tensor:
+        """
+        Denormalize the output tensor y based on the min and max bounds.
+
+        Args:
+            y: Input tensor to denormalize.
+
+        Returns:
+            Denormalized tensor.
+        """
+        return y * (self.max - self.min) + self.min
 
     def get_postcondition(
         self,
         N: torch.nn.Module,
         x_adv: torch.Tensor,
-        scale: torch.Tensor | None = None,
-        centre: torch.Tensor | None = None,
     ) -> Callable[[Logic], torch.Tensor]:
         """
         Get output bounds postcondition for adversarial inputs.
@@ -227,39 +237,21 @@ class AlsomitraOutputPostcondition(Postcondition):
         """
         y_adv = N(x_adv).squeeze()
 
-        if self.normalize:
-            # Normalize bounds at postcondition time using class constants
-            lo_normalized = (
-                None
-                if self.lo_raw is None
-                else (torch.tensor(self.lo_raw, device=self.device) - centre) / scale
-            )
-            hi_normalized = (
-                None
-                if self.hi_raw is None
-                else (torch.tensor(self.hi_raw, device=self.device) - centre) / scale
-            )
-
-            lo_normalized = (
-                lo_normalized.squeeze() if lo_normalized is not None else None
-            )
-            hi_normalized = (
-                hi_normalized.squeeze() if hi_normalized is not None else None
-            )
-        else:
-            # Use pre-normalized bounds
-            lo_normalized = self.lo
-            hi_normalized = self.hi
-
-        if lo_normalized is None and hi_normalized is not None:
-            return lambda logic: logic.LEQ(y_adv, hi_normalized)
-        elif lo_normalized is not None and hi_normalized is not None:
+        if torch.isnan(self.lo) and not torch.isnan(
+            self.hi
+        ):  # no lower bound, but upper bound
+            return lambda logic: logic.LEQ(y_adv, self.hi)
+        elif not torch.isnan(self.lo) and not torch.isnan(
+            self.hi
+        ):  # both lower and upper bound
             return lambda logic: logic.AND(
-                logic.LEQ(lo_normalized, y_adv), logic.LEQ(y_adv, hi_normalized)
+                logic.GEQ(y_adv, self.lo), logic.LEQ(y_adv, self.hi)
             )
-        elif lo_normalized is not None and hi_normalized is None:
-            return lambda logic: logic.LEQ(lo_normalized, y_adv)
-        else:
+        elif not torch.isnan(self.lo) and torch.isnan(
+            self.hi
+        ):  # lower bound, no upper bound
+            return lambda logic: logic.GEQ(y_adv, self.lo)
+        else:  # no lower and no upper bound
             raise ValueError(
                 "need to specify either lower or upper (or both) bounds for e_x"
             )

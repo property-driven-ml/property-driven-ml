@@ -47,11 +47,11 @@ class AlsomitraNet(nn.Module):
 
 class DiceNet(nn.Module):
     def __init__(self):
-        super(DiceNet, self).__init__()
+        super().__init__()
         self.conv1 = nn.Conv2d(3, 4, kernel_size=3, stride=2, padding=1)
         self.conv2 = nn.Conv2d(4, 8, kernel_size=3, stride=2, padding=1)
-        self.fc1 = nn.Linear(8 * 7 * 7, 8)
-        self.fc2 = nn.Linear(8, 6)
+        self.fc1 = nn.Linear(8 * 7 * 7, 16)
+        self.fc2 = nn.Linear(16, 6)
 
     def forward(self, x):
         x = F.relu(self.conv1(x))

@@ -188,17 +188,19 @@ class AlsomitraBase(Precondition):
     Base class for Alsomitra aerodynamics data preconditions.
     """
 
-    def __init__(self, min: torch.Tensor, max: torch.Tensor) -> None:
+    def __init__(self, device: torch.device) -> None:
         """
         Initialize the Alsomitra input region precondition.
-        Args:
-            min: Tensor defining minimum bounds for input dimensions.
-            max: Tensor defining maximum bounds for input dimensions.
-
-        Easiest to get by tensor.min(dim=0).values and tensor.max(dim=0).values on the training data.
         """
-        self.min = min
-        self.max = max
+        self.device = device
+        self.min = torch.tensor(
+            [0.967568, -0.607397, -0.356973, -0.968479, 0.482421, -41.681405],
+            device=self.device,
+        )
+        self.max = torch.tensor(
+            [3.489893, -0.043021, 0.049180, -0.068003, 41.714717, 4.197234],
+            device=self.device,
+        )
         # Define indices for each feature for clarity
         self.v_x = 0
         self.v_y = 1
@@ -206,6 +208,15 @@ class AlsomitraBase(Precondition):
         self.theta = 3
         self.x = 4
         self.y = 5
+
+    # replace unbounded (nan) bounds with Alsomitra domain-specific min / max values
+    def apply_domain_bounds(
+        self, lo: torch.Tensor, hi: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        lo = torch.where(torch.isnan(lo), self.min, lo)
+        hi = torch.where(torch.isnan(hi), self.max, hi)
+
+        return lo, hi
 
     def normalize(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -236,12 +247,12 @@ class AlsomitraProperty1(AlsomitraBase):
     """
     Specialized precondition for Alsomitra aerodynamics data.
 
-    Intended for use in fir = x_problem[-v]st Alsomitra constraint.
+    Intended for use in first Alsomitra constraint.
     """
 
-    def __init__(self, threshold: float, min: torch.Tensor, max: torch.Tensor) -> None:
-        super().__init__(min, max)
-        self.threshold = threshold
+    def __init__(self, device: torch.device, y_threshold: float) -> None:
+        super().__init__(device)
+        self.y_threshold = y_threshold
 
     def get_bounds(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -253,15 +264,15 @@ class AlsomitraProperty1(AlsomitraBase):
         x_problem = self.denormalize(x)
 
         lo = x_problem.clone()
-        lo[self.y] = self.threshold - x_problem[self.x]
+        lo[:, self.y] = self.y_threshold - x_problem[:, self.x]
 
         hi = x_problem.clone()
 
         lo = self.normalize(lo)
         hi = self.normalize(hi)
-        hi[self.y] = np.nan  # No upper bound for y-coordinate
+        hi[:, self.y] = np.nan  # No upper bound for y-coordinate
 
-        return lo, hi
+        return self.apply_domain_bounds(lo, hi)
 
 
 class AlsomitraProperty2(AlsomitraBase):
@@ -273,10 +284,9 @@ class AlsomitraProperty2(AlsomitraBase):
 
     def __init__(
         self,
+        device: torch.device,
         y_threshold: float,
         theta_thresholds: Tuple[float, float],
-        min: torch.Tensor,
-        max: torch.Tensor,
     ) -> None:
         """
         Initialize the Alsomitra input region precondition.
@@ -287,7 +297,7 @@ class AlsomitraProperty2(AlsomitraBase):
             min: Tensor defining minimum bounds for input dimensions.
             max: Tensor defining maximum bounds for input dimensions.
         """
-        super().__init__(min, max)
+        super().__init__(device)
         self.y_threshold = y_threshold
         self.theta_thresholds = theta_thresholds
 
@@ -304,12 +314,12 @@ class AlsomitraProperty2(AlsomitraBase):
         lo = x_problem.clone()
         hi = x_problem.clone()
 
-        lo[self.y] = -self.y_threshold - x_problem[self.x]
-        hi[self.y] = self.y_threshold - x_problem[self.x]
-        lo[self.theta] = self.theta_thresholds[0]
-        hi[self.theta] = self.theta_thresholds[1]
+        lo[:, self.y] = -self.y_threshold - x_problem[:, self.x]
+        hi[:, self.y] = self.y_threshold - x_problem[:, self.x]
+        lo[:, self.theta] = self.theta_thresholds[0]
+        hi[:, self.theta] = self.theta_thresholds[1]
 
-        return lo, hi
+        return self.apply_domain_bounds(lo, hi)
 
 
 class AlsomitraProperty3(AlsomitraBase):
@@ -321,22 +331,20 @@ class AlsomitraProperty3(AlsomitraBase):
 
     def __init__(
         self,
+        device: torch.device,
         v_y_threshold: float,
         y_threshold: float,
         omega_threshold: float,
-        min: torch.Tensor,
-        max: torch.Tensor,
     ) -> None:
         """
         Initialize the Alsomitra input region precondition.
 
         Args:
-            v_y_threshold: Threshold for the y-coordinate relative to x.
+            v_y_threshold: Threshold for the v_y-coordinate relative to x.
+            y_threshold: Threshold for the y-coordinate relative to x.
             theta_threshold: Threshold for the theta angle.
-            min: Tensor defining minimum bounds for input dimensions.
-            max: Tensor defining maximum bounds for input dimensions.
         """
-        super().__init__(min, max)
+        super().__init__(device)
         self.v_y_threshold = v_y_threshold
         self.y_threshold = y_threshold
         self.omega_threshold = omega_threshold
@@ -354,17 +362,17 @@ class AlsomitraProperty3(AlsomitraBase):
         lo = x_problem.clone()
         hi = x_problem.clone()
 
-        lo[self.y] = -x_problem[self.x]
-        hi[self.y] = self.y_threshold - x_problem[self.x]
-        lo[self.v_y] = np.nan  # No lower bound for v_y
-        hi[self.v_y] = self.v_y_threshold
-        lo[self.omega] = np.nan  # No lower bound for omega
-        hi[self.omega] = self.omega_threshold
+        lo[:, self.y] = -x_problem[:, self.x]
+        hi[:, self.y] = self.y_threshold - x_problem[:, self.x]
+        lo[:, self.v_y] = np.nan  # No lower bound for v_y
+        hi[:, self.v_y] = self.v_y_threshold
+        lo[:, self.omega] = np.nan  # No lower bound for omega
+        hi[:, self.omega] = self.omega_threshold
 
         lo = self.normalize(lo)
         hi = self.normalize(hi)
 
-        return lo, hi
+        return self.apply_domain_bounds(lo, hi)
 
 
 class AlsomitraProperty4(AlsomitraBase):
@@ -374,18 +382,14 @@ class AlsomitraProperty4(AlsomitraBase):
     Intended for use in fourth Alsomitra constraint.
     """
 
-    def __init__(
-        self, y_threshold: float, min: torch.Tensor, max: torch.Tensor
-    ) -> None:
+    def __init__(self, device: torch.device, y_threshold: float) -> None:
         """
         Initialize the Alsomitra input region precondition.
 
         Args:
             y_threshold: Threshold for the y-coordinate relative to x.
-            min: Tensor defining minimum bounds for input dimensions.
-            max: Tensor defining maximum bounds for input dimensions.
         """
-        super().__init__(min, max)
+        super().__init__(device)
         self.y_threshold = y_threshold
 
     def get_bounds(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -401,7 +405,7 @@ class AlsomitraProperty4(AlsomitraBase):
         lo = x_problem.clone()
         hi = x_problem.clone()
 
-        lo[self.y] = -self.y_threshold - x_problem[self.x]
-        hi[self.y] = self.y_threshold - x_problem[self.x]
+        lo[:, self.y] = -self.y_threshold - x_problem[:, self.x]
+        hi[:, self.y] = self.y_threshold - x_problem[:, self.x]
 
-        return lo, hi
+        return self.apply_domain_bounds(lo, hi)

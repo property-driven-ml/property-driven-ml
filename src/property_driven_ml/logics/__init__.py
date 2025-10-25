@@ -19,6 +19,7 @@ from .fuzzy_logics import (
 )
 from .stl import STL
 from .dl2 import DL2
+from .leaky_logic import LeakyLogic
 
 __all__ = [
     "Logic",
@@ -33,4 +34,5 @@ __all__ = [
     "YagerFuzzyLogic",
     "STL",
     "DL2",
+    "LeakyLogic",
 ]

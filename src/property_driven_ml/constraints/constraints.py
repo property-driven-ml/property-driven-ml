@@ -84,7 +84,7 @@ class Constraint(ABC):
                 hi = torch.min(hi, self.max.to(self.device))
             else:
                 raise ValueError(
-                    "Need to set min and max for unbounded dimensions in precondition"
+                    f"Need to set min and max for unbounded dimensions in precondition, got lo={lo}, hi={hi}"
                 )
         # Expand lo and hi to shape (num_samples, *x.shape)
         # lo and hi should have same shape as x, so we add num_samples dimension
@@ -207,7 +207,7 @@ class StandardRobustnessConstraint(Constraint):
         self,
         device: torch.device,
         epsilon: float,
-        delta: float = 0.05,
+        delta: float = 0.1,
         std: Tuple[float, ...] | float | None = None,
     ):
         """Initialize StandardRobustnessConstraint.
@@ -255,7 +255,6 @@ class OppositeFacesConstraint(Constraint):
         self,
         device: torch.device,
         epsilon: float = 24 / 255,
-        delta: float = 1.0,
         std: Tuple[float, ...] | float | None = None,
     ):
         """Initialize OppositeFacesConstraint.
@@ -267,7 +266,7 @@ class OppositeFacesConstraint(Constraint):
         """
         super().__init__(device)
         self.precondition = EpsilonBall(device, epsilon, std)
-        self.postcondition = OppositeFacesPostcondition(device, delta)
+        self.postcondition = OppositeFacesPostcondition(device)
 
 
 class AlsomitraProperty1Constraint(Constraint):
@@ -276,24 +275,19 @@ class AlsomitraProperty1Constraint(Constraint):
     def __init__(
         self,
         device: torch.device,
-        bounds_output: Tuple[float, float],
-        min: torch.Tensor,
-        max: torch.Tensor,
-        normalize: bool = True,
-        threshold: float = 2.0,
+        y_threshold: float = 2.0,
+        bounds_output: Tuple[Optional[float], Optional[float]] = (0.187, np.nan),
     ):
         """Initialize AlsomitraProperty1Constraint.
 
         Args:
-            threshold: Threshold for the y output.
-            bounds_output: Tuple specifying (min, max) bounds for the output y.
-            min: Optional minimum bound for input data.
-            max: Optional maximum bound for input data.
+            y_threshold: Threshold for the y input.
+            bounds_output: Tuple specifying (min, max) bounds for the output e.
         """
-        super().__init__(device=torch.device("cpu"), min=min, max=max)
-        self.precondition = AlsomitraProperty1(threshold, min, max)
+        super().__init__(device)
+        self.precondition = AlsomitraProperty1(device, y_threshold)
         self.postcondition = AlsomitraOutputPostcondition(
-            device, lo=bounds_output[0], hi=bounds_output[1], normalize=normalize
+            device, lo=bounds_output[0], hi=bounds_output[1]
         )
 
 
@@ -303,8 +297,6 @@ class AlsomitraProperty2Constraint(Constraint):
     def __init__(
         self,
         device: torch.device,
-        min: torch.Tensor,
-        max: torch.Tensor,
         y_threshold: float = 2.0,
         theta_threshold: Tuple[float, float] = (-0.786, 0.747),
         bounds_output: Tuple[Optional[float], Optional[float]] = (0.184, 0.19),
@@ -312,15 +304,13 @@ class AlsomitraProperty2Constraint(Constraint):
         """Initialize AlsomitraProperty2Constraint.
 
         Args:
-            y_threshold: Threshold for the y output.
-            theta_threshold: Tuple specifying (min, max) bounds for the theta output.
-            min: Optional minimum bound for input data.
-            max: Optional maximum bound for input data.
+            y_threshold: Threshold for the y input.
+            theta_threshold: Tuple specifying (min, max) bounds for the theta input.
         """
-        super().__init__(device=torch.device("cpu"), min=min, max=max)
-        self.precondition = AlsomitraProperty2(y_threshold, theta_threshold, min, max)
+        super().__init__(device)
+        self.precondition = AlsomitraProperty2(device, y_threshold, theta_threshold)
         self.postcondition = AlsomitraOutputPostcondition(
-            device, lo=bounds_output[0], hi=bounds_output[1], normalize=False
+            device, lo=bounds_output[0], hi=bounds_output[1]
         )
 
 
@@ -330,8 +320,6 @@ class AlsomitraProperty3Constraint(Constraint):
     def __init__(
         self,
         device: torch.device,
-        min: torch.Tensor,
-        max: torch.Tensor,
         y_threshold: float = 2.0,
         v_y_threshold: float = -0.3,
         omega_threshold: float = -0.12,
@@ -342,15 +330,13 @@ class AlsomitraProperty3Constraint(Constraint):
         Args:
             y_threshold: Threshold for the y output.
             theta_threshold: Tuple specifying (min, max) bounds for the theta output.
-            min: Optional minimum bound for input data.
-            max: Optional maximum bound for input data.
         """
-        super().__init__(device=torch.device("cpu"), min=min, max=max)
+        super().__init__(device)
         self.precondition = AlsomitraProperty3(
-            y_threshold, v_y_threshold, omega_threshold, min, max
+            device, y_threshold, v_y_threshold, omega_threshold
         )
         self.postcondition = AlsomitraOutputPostcondition(
-            device, lo=bounds_output[0], hi=bounds_output[1], normalize=False
+            device, lo=bounds_output[0], hi=bounds_output[1]
         )
 
 
@@ -360,8 +346,6 @@ class AlsomitraProperty4Constraint(Constraint):
     def __init__(
         self,
         device: torch.device,
-        min: torch.Tensor,
-        max: torch.Tensor,
         y_threshold: float = 2.0,
         L: float = 0.3,
     ):
@@ -370,9 +354,7 @@ class AlsomitraProperty4Constraint(Constraint):
         Args:
             device: PyTorch device for tensor computations.
             y_threshold: Threshold for the y output.
-            min: Optional minimum bound for input data.
-            max: Optional maximum bound for input data.
         """
-        super().__init__(device=torch.device("cpu"), min=min, max=max)
-        self.precondition = AlsomitraProperty4(y_threshold, min, max)
+        super().__init__(device)
+        self.precondition = AlsomitraProperty4(device, y_threshold)
         self.postcondition = LipschitzRobustnessPostcondition(device, L=L)
