@@ -13,6 +13,7 @@ import property_driven_ml.constraints as constraints
 import property_driven_ml.training as training
 from property_driven_ml.utils import maybe
 from property_driven_ml.training.epoch_info import EpochInfoTrain, EpochInfoTest
+from property_driven_ml.training.mode import Mode
 
 
 def train(  # TODO: add task loss function as an argument
@@ -25,8 +26,7 @@ def train(  # TODO: add task loss function as an argument
     logic: logics.Logic,
     constraint: constraints.Constraint,
     with_dl: bool,
-    is_classification: bool,
-    denorm_scale: None | torch.Tensor = None,
+    mode: Mode,
 ) -> EpochInfoTrain:
     """Train the model for one epoch with property-driven learning.
 
@@ -40,8 +40,7 @@ def train(  # TODO: add task loss function as an argument
         logic: Logic system for constraint evaluation.
         constraint: Constraint to enforce during training.
         with_dl: Whether to use property-driven learning.
-        is_classification: Whether this is a classification task.
-        denorm_scale: Denormalization coefficient for output images and loss.
+        mode: The training mode, i.e. multi-class classification, multi-label classification, or regression.
 
     Returns:
         Training epoch information including metrics and sample images.
@@ -68,17 +67,31 @@ def train(  # TODO: add task loss function as an argument
         # forward pass
         y = N(x)
 
-        if is_classification:
+        if mode is Mode.MultiClassClassification:
             # loss + prediction accuracy calculation
             loss = F.cross_entropy(y, y_target)
             correct = torch.mean(torch.argmax(y, dim=1).eq(y_target).float())
             avg_pred_metric += correct
-        else:
+        elif mode is Mode.MultiLabelClassification:
+            # loss + hamming accuracy
+            loss = F.binary_cross_entropy_with_logits(y, y_target)
+            pred = (y > 0.0).float()  # no sigmoid to make verification easier
+            correct = torch.mean((pred == y_target).float().mean(dim=1))
+            avg_pred_metric += correct
+        elif mode is Mode.Regression:
+            # TODO: particularly ugly!
+            if isinstance(constraint, constraints.AlsomitraOutputPostcondition):
+                scale = 0.012
+            else:
+                scale = 1.0
+
             # loss calculation for regression
             loss = F.mse_loss(y, y_target)
             rmse = torch.sqrt(loss)
-            rmse = (denorm_scale * rmse.cpu()).squeeze()
+            rmse = (scale * rmse.cpu()).squeeze()
             avg_pred_metric += rmse
+        else:  # TODO: can this happen?
+            assert False, f"mode {mode} not supported!"  # nosec
 
         adv = oracle.attack(N, x, y_target, constraint)
 
@@ -140,8 +153,7 @@ def test(
     oracle: training.Attack,
     logic: logics.Logic,
     constraint: constraints.Constraint,
-    is_classification: bool,
-    denorm_scale: None | torch.Tensor = None,
+    mode: Mode,
 ) -> EpochInfoTest:
     """Evaluate the model on test data.
 
@@ -152,8 +164,7 @@ def test(
         oracle: Attack oracle for generating adversarial examples.
         logic: Logic system for constraint evaluation.
         constraint: Constraint to evaluate.
-        is_classification: Whether this is a classification task.
-        denorm_scale: Denormalization coefficient for output images and loss.
+        mode: The training mode, i.e. multi-class classification, multi-label classification, or regression.
 
     Returns:
         Test epoch information including metrics and sample images.
@@ -184,14 +195,21 @@ def test(
             # forward pass
             y = N(x)
 
-            if is_classification:
+            if mode is Mode.MultiClassClassification:
                 avg_pred_loss += F.cross_entropy(y, y_target, reduction="sum")
                 pred = y.max(dim=1, keepdim=True)[1]
                 correct += pred.eq(y_target.view_as(pred)).sum()
-            else:
+            elif mode is Mode.MultiLabelClassification:
+                avg_pred_loss += F.binary_cross_entropy_with_logits(
+                    y, y_target, reduction="sum"
+                )
+                pred = (y > 0.0).float()
+                correct += torch.sum((pred == y_target).float().mean(dim=1))
+            elif mode is Mode.Regression:
                 avg_pred_loss += F.mse_loss(y, y_target, reduction="sum")
+            else:  # TODO: can this happen?
+                assert False, f"mode {mode} not supported!"  # nosec
 
-            # get random samples (no grad)
         # get adversarial samples (requires grad)
         adv = oracle.attack(N, x, y_target, constraint)
 
@@ -217,14 +235,24 @@ def test(
         images = dict()
         images["input"], images["random"], images["adv"] = x[i], random_sample, adv[i]
 
-    if is_classification:
+    if mode in (Mode.MultiClassClassification, Mode.MultiLabelClassification):
         pred_acc = correct.item() / total_samples
-    else:
+    elif mode is Mode.Regression:
+        # TODO: particularly ugly!
+        if isinstance(constraint, constraints.AlsomitraOutputPostcondition):
+            scale = 0.012
+        else:
+            scale = 1.0
+
         rmse = torch.sqrt(avg_pred_loss / total_samples)
-        rmse = (denorm_scale * rmse.cpu()).item()
+        rmse = (scale * rmse.cpu()).item()
+    else:  # TODO: can this happen?
+        assert False, f"mode {mode} not supported!"  # nosec
 
     return EpochInfoTest(
-        pred_metric=pred_acc if is_classification else rmse,  # type: ignore
+        pred_metric=pred_acc
+        if mode in (Mode.MultiClassClassification, Mode.MultiLabelClassification)
+        else rmse,  # type: ignore
         constr_acc=constr_acc.item() / total_samples,
         constr_sec=constr_sec.item() / total_samples,
         pred_loss=avg_pred_loss.item() / total_samples,

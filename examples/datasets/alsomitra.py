@@ -8,61 +8,58 @@ Alsomitra reference: https://arxiv.org/abs/2505.00622
 """
 
 import torch
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
+import numpy as np
+import pandas as pd
 from typing import Tuple
 
+from property_driven_ml.training.mode import Mode
 from examples.models import AlsomitraNet
-
-import pandas as pd
 
 
 class AlsomitraDataset(torch.utils.data.Dataset):
-    def __init__(self, csv_file):
-        data = pd.read_csv(csv_file, header=None)
+    def __init__(
+        self,
+        data_all: pd.DataFrame,
+        indices: np.ndarray,
+        in_stats: Tuple[
+            pd.Series, pd.Series
+        ],  # (centre, scale) to min-max normalise inputs to [0, 1]
+        out_stats: Tuple[
+            float, float
+        ],  # (y_min, y_max) to min-max normalise outputs to [0, 1]
+    ):
+        data = data_all.iloc[indices].reset_index(drop=True).copy()
 
-        self.inputs, AlsomitraDataset.C_in, AlsomitraDataset.S_in = (
-            self.normalise_dataset(
-                torch.tensor(data.iloc[:, :-2].values, dtype=torch.float32)
-            )
-        )
-        self.outputs, AlsomitraDataset.C_out, AlsomitraDataset.S_out = (
-            self.normalise_dataset(
-                torch.tensor(data.iloc[:, -1].values, dtype=torch.float32).unsqueeze(1)
-            )
-        )
+        centre, scale = in_stats
+        data.iloc[:, :-2] = (data.iloc[:, :-2] - centre) / scale
 
-    # min-max normalise to [0, 1]
-    def normalise_dataset(
-        self, x: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        centre = x.min(dim=0).values
-        scale = x.max(dim=0).values - centre
+        y_min, y_max = out_stats
+        data.iloc[:, -1] = (data.iloc[:, -1] - y_min) / (y_max - y_min)
 
-        return (x - centre) / scale, centre, scale
-
-    def normalise_input(self, x: torch.Tensor) -> torch.Tensor:
-        return (x - AlsomitraDataset.C_in) / AlsomitraDataset.S_in
-
-    def denormalise_input(self, x: torch.Tensor) -> torch.Tensor:
-        return x * AlsomitraDataset.S_in + AlsomitraDataset.C_in
-
-    def normalise_output(self, x: torch.Tensor) -> torch.Tensor:
-        return (x - AlsomitraDataset.C_out) / AlsomitraDataset.S_out
-
-    def denormalise_output(self, x: torch.Tensor) -> torch.Tensor:
-        return x * AlsomitraDataset.S_out + AlsomitraDataset.C_out
+        self.X = data.iloc[:, :-2].to_numpy(dtype=np.float32, copy=False)
+        self.y = data.iloc[:, -1].to_numpy(dtype=np.float32, copy=False)
 
     def __len__(self):
-        return len(self.inputs)
+        return len(self.X)
 
     def __getitem__(self, idx):
-        return self.inputs[idx], self.outputs[idx]
+        # y as [1] to match (N,1) predictors
+        return torch.from_numpy(self.X[idx]), torch.tensor(
+            [self.y[idx]], dtype=torch.float32
+        )
 
 
 def create_alsomitra_datasets(
     batch_size: int,
-) -> Tuple[
-    DataLoader, DataLoader, torch.nn.Module, Tuple[Tuple[float, ...], Tuple[float, ...]]
+    train_split: float = 0.8,
+    seed: int = 42,
+) -> tuple[
+    DataLoader,
+    DataLoader,
+    torch.nn.Module,
+    tuple[tuple[float, ...], tuple[float, ...]],
+    Mode,
 ]:
     """
     Create Alsomitra train and test data loaders.
@@ -73,18 +70,35 @@ def create_alsomitra_datasets(
     Returns:
         Tuple of (train_loader, test_loader, model, (mean, std))
     """
-    dataset = AlsomitraDataset("examples/alsomitra_data_680.csv")
-    train_size = int(0.8 * len(dataset))
-    test_size = len(dataset) - train_size
+    csv_path = "../data/alsomitra/alsomitra_data_680.csv"
+    data_all = pd.read_csv(csv_path, header=None)
 
-    dataset_train, dataset_test = random_split(
-        dataset, [train_size, test_size], generator=torch.Generator().manual_seed(42)
+    perm = np.random.RandomState(seed).permutation(len(data_all))
+    split_idx = int(train_split * len(data_all))
+    train_idx, test_idx = perm[:split_idx], perm[split_idx:]
+
+    # compute min/max on train inputs only
+    train_inputs = data_all.iloc[train_idx, :-2]
+    min = train_inputs.min(axis=0)
+    max = train_inputs.max(axis=0)
+    scale = max - min
+
+    # compute min/max on train outputs only
+    train_outputs = data_all.iloc[train_idx, -1]
+    y_min = train_outputs.min()
+    y_max = train_outputs.max()
+
+    dataset_train = AlsomitraDataset(
+        data_all, train_idx, in_stats=(min, scale), out_stats=(y_min, y_max)
+    )
+    dataset_test = AlsomitraDataset(
+        data_all, test_idx, in_stats=(min, scale), out_stats=(y_min, y_max)
     )
 
     train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(dataset_test, batch_size=batch_size, shuffle=False)
 
     model = AlsomitraNet()
-    mean, std = (0.0,), (1.0,)  # No normalization needed for Alsomitra
+    mean, std = (0.0,), (1.0,)  # no normalisation needed for Alsomitra
 
-    return train_loader, test_loader, model, (mean, std)
+    return train_loader, test_loader, model, (mean, std), Mode.Regression

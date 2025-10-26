@@ -10,13 +10,19 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from typing import Tuple
 
+from property_driven_ml.training.mode import Mode
+
 from examples.models import MnistNet
 
 
 def create_mnist_datasets(
     batch_size: int,
 ) -> Tuple[
-    DataLoader, DataLoader, torch.nn.Module, Tuple[Tuple[float, ...], Tuple[float, ...]]
+    DataLoader,
+    DataLoader,
+    torch.nn.Module,
+    Tuple[Tuple[float, ...], Tuple[float, ...]],
+    Mode,
 ]:
     """
     Create MNIST train and test data loaders.
@@ -56,4 +62,4 @@ def create_mnist_datasets(
 
     model = MnistNet()
 
-    return train_loader, test_loader, model, (mean, std)
+    return train_loader, test_loader, model, (mean, std), Mode.MultiClassClassification

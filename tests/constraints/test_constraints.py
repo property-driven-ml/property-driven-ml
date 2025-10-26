@@ -94,7 +94,7 @@ class TestEpsilonBall:
         lo, hi = epsilon_ball.get_bounds(sample_input)
 
         # With std, epsilon should be scaled
-        scaled_epsilon = 0.1 * std_val
+        scaled_epsilon = 0.1 / std_val
         expected_lo = sample_input - scaled_epsilon
         expected_hi = sample_input + scaled_epsilon
 

@@ -9,8 +9,11 @@ from typing import Tuple, Dict, Callable
 import torch
 from torch.utils.data import DataLoader
 
+from property_driven_ml.training.mode import Mode
+
 from .mnist import create_mnist_datasets
 from .alsomitra import create_alsomitra_datasets, AlsomitraDataset
+from .dice import create_dice_datasets
 from .gtsrb import create_gtsrb_datasets
 
 
@@ -18,6 +21,7 @@ from .gtsrb import create_gtsrb_datasets
 DATASET_CREATORS: Dict[str, Callable] = {
     "mnist": create_mnist_datasets,
     "alsomitra": create_alsomitra_datasets,
+    "dice": create_dice_datasets,
     "gtsrb": create_gtsrb_datasets,
 }
 
@@ -25,17 +29,21 @@ DATASET_CREATORS: Dict[str, Callable] = {
 def create_dataset(
     dataset_name: str, batch_size: int
 ) -> Tuple[
-    DataLoader, DataLoader, torch.nn.Module, Tuple[Tuple[float, ...], Tuple[float, ...]]
+    DataLoader,
+    DataLoader,
+    torch.nn.Module,
+    Tuple[Tuple[float, ...], Tuple[float, ...]],
+    Mode,
 ]:
     """
     Create dataset loaders based on dataset name.
 
     Args:
-        dataset_name: Name of the dataset ('mnist', 'alsomitra', 'gtsrb')
+        dataset_name: Name of the dataset ('mnist', 'alsomitra', 'dice', 'gtsrb')
         batch_size: Size of training batches
 
     Returns:
-        Tuple of (train_loader, test_loader, model, (mean, std))
+        Tuple of (train_loader, test_loader, model, (mean, std), mode)
 
     Raises:
         ValueError: If dataset_name is not supported
@@ -88,6 +96,7 @@ __all__ = [
     "DATASET_CREATORS",
     "create_mnist_datasets",
     "create_alsomitra_datasets",
+    "create_dice_datasets",
     "create_gtsrb_datasets",
     "AlsomitraDataset",
 ]

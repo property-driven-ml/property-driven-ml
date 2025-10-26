@@ -16,6 +16,10 @@ dist/
 # Project specific
 *.typed
 data/
+!data/alsomitra/
+!data/alsomitra/**
+!data/dice/
+!data/dice/**
 
 # API credentials
 .pypirc

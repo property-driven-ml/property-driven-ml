@@ -10,13 +10,19 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from typing import Tuple
 
+from property_driven_ml.training.mode import Mode
+
 from examples.models import GTSRBNet
 
 
 def create_gtsrb_datasets(
     batch_size: int,
 ) -> Tuple[
-    DataLoader, DataLoader, torch.nn.Module, Tuple[Tuple[float, ...], Tuple[float, ...]]
+    DataLoader,
+    DataLoader,
+    torch.nn.Module,
+    Tuple[Tuple[float, ...], Tuple[float, ...]],
+    Mode,
 ]:
     """
     Create GTSRB train and test data loaders.
@@ -69,4 +75,4 @@ def create_gtsrb_datasets(
 
     model = GTSRBNet()
 
-    return train_loader, test_loader, model, (mean, std)
+    return train_loader, test_loader, model, (mean, std), Mode.MultiClassClassification

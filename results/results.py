@@ -67,7 +67,13 @@ def write_plot_file(report_dir: str, target_file: str):
 
         file.write(begin)
 
-        report_files = sorted([f for f in os.listdir(report_dir) if f.endswith(".csv")])
+        report_files = sorted(
+            [
+                f
+                for f in os.listdir(report_dir)
+                if f.endswith(".csv") and not f.endswith("RegressionPlot.csv")
+            ]
+        )
 
         def write(report, key: str):
             df = pandas.read_csv(os.path.join(report_dir, report), comment="#")
@@ -152,7 +158,13 @@ def write_table_file(report_dir: str, target_file: str):
 
     total_seconds = 0.0
 
-    report_files = sorted([f for f in os.listdir(report_dir) if f.endswith(".csv")])
+    report_files = sorted(
+        [
+            f
+            for f in os.listdir(report_dir)
+            if f.endswith(".csv") and not f.endswith("RegressionPlot.csv")
+        ]
+    )
 
     if len(report_files) < 1:
         return

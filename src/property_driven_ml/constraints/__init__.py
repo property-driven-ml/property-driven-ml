@@ -12,10 +12,16 @@ BoundedDataset classes.
 from .constraints import (
     Constraint,
     StandardRobustnessConstraint,
+    OppositeFacesConstraint,
+    AlsomitraProperty1Constraint,
+    AlsomitraProperty2Constraint,
+    AlsomitraProperty3Constraint,
+    AlsomitraProperty4Constraint,
 )
 from .preconditions import EpsilonBall
 from .postconditions import (
     StandardRobustnessPostcondition,
+    OppositeFacesPostcondition,
     LipschitzRobustnessPostcondition,
     GroupPostcondition,
     AlsomitraOutputPostcondition,
@@ -25,10 +31,16 @@ __all__ = [
     # Constraints
     "Constraint",
     "StandardRobustnessConstraint",
+    "OppositeFacesConstraint",
+    "AlsomitraProperty1Constraint",
+    "AlsomitraProperty2Constraint",
+    "AlsomitraProperty3Constraint",
+    "AlsomitraProperty4Constraint",
     # Preconditions
     "EpsilonBall",
     # Postconditions
     "StandardRobustnessPostcondition",
+    "OppositeFacesPostcondition",
     "LipschitzRobustnessPostcondition",
     "GroupPostcondition",
     "AlsomitraOutputPostcondition",

@@ -45,6 +45,23 @@ class AlsomitraNet(nn.Module):
         return x
 
 
+class DiceNet(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 4, kernel_size=3, stride=2, padding=1)
+        self.conv2 = nn.Conv2d(4, 8, kernel_size=3, stride=2, padding=1)
+        self.fc1 = nn.Linear(8 * 7 * 7, 16)
+        self.fc2 = nn.Linear(16, 6)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = torch.flatten(x, start_dim=1)
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+        return x
+
+
 # based on https://github.com/poojahira/gtsrb-pytorch/blob/master/model.py
 class GTSRBNet(nn.Module):
     def __init__(self):

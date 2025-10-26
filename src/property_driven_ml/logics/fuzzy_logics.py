@@ -30,17 +30,17 @@ class FuzzyLogic(Logic):
         """
         return 1.0 - x
 
-    def NEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Fuzzy inequality.
+    def EQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """Fuzzy equality.
 
         Args:
             x: Left-hand side tensor.
             y: Right-hand side tensor.
 
         Returns:
-            Maps x != y into [0, 1] for real-valued x, y.
+            Maps x == y into [0, 1] for real-valued x, y.
         """
-        return safe_div(torch.abs(x - y), (torch.abs(x) + torch.abs(y)))
+        return (x == y).to(dtype=x.dtype, device=x.device)
 
     def LEQ(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Fuzzy less than or equal comparison.
