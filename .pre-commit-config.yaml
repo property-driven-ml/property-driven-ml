@@ -54,6 +54,13 @@ repos:
         args: [-v,--fail-under=50]  # Lenient for research code
         exclude: ^(tests/|nb/|scripts/)
 
+  # UV dependency management
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.5.7
+    hooks:
+      - id: uv-export
+        args: [--format, requirements-txt, --output-file, requirements.txt]
+
 # Configuration
 default_language_version:
   python: python3.12
