@@ -39,11 +39,11 @@ jobs:
     - name: Run quick tests (Ubuntu only)
       run: uv run pytest tests/ -x --tb=short --maxfail=5
 
-  # Comprehensive cross-platform testing for main branch
+  # Comprehensive cross-platform testing for main branch and PRs
   test-compatibility:
     name: Cross-platform compatibility
     runs-on: ${{ matrix.os }}
-    if: github.ref == 'refs/heads/main'  # Only run on main branch
+    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'  # Run on main branch or PRs
     strategy:
       fail-fast: false
       matrix:
@@ -74,7 +74,7 @@ jobs:
   test-full:
     name: Full test suite
     runs-on: ${{ matrix.os }}
-    if: github.ref == 'refs/heads/main'  # Only run on main branch
+    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'  # Run on main branch or PRs
     needs: test-compatibility  # Only run if compatibility tests pass
     strategy:
       fail-fast: false
