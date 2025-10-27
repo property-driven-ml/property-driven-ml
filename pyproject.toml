@@ -89,12 +89,15 @@ dev = [
     "pytest-cov>=4.0",
     "ruff>=0.1.0",
     "pre-commit>=4.3.0",
-    "twine>=6.1.0",
 ]
 test = [
     "pytest>=8.0.0",
     "pytest-cov>=6.0.0",
     "pytest-xdist>=3.0.0",  # For parallel test execution
+]
+deploy = [
+    "twine>=6.1.0",
+    "build>=1.0.0",  # For building packages if needed
 ]
 
 # Pytest configuration
