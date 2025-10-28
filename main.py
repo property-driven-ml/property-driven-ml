@@ -43,6 +43,15 @@ def main():
     parser.add_argument("--batch-size", type=int, required=True)
     parser.add_argument("--lr", type=float, required=True)
     parser.add_argument(
+        "--epsilon", type=float, default=0.3, help="epsilon value for epsilon-ball"
+    )
+    parser.add_argument(
+        "--delta",
+        type=float,
+        default=0.05,
+        help="delta value for probabilistic constraints",
+    )
+    parser.add_argument(
         "--epochs", type=int, required=True, help="number of epochs to train for"
     )
     parser.add_argument(
@@ -166,8 +175,8 @@ def main():
     if constraint_class == StandardRobustnessConstraint:
         constraint: constraints.Constraint = StandardRobustnessConstraint(
             device=device,
-            epsilon=0.3,  # Default epsilon for standard robustness
-            delta=0.05,  # Default delta for standard robustness
+            epsilon=args.epsilon,  # Default epsilon for standard robustness 0.3
+            delta=args.delta,  # Default delta for standard robustness 0.05
             std=std,  # Use dataset std for epsilon scaling
         )
     else:
