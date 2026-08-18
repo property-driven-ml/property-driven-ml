@@ -158,8 +158,6 @@ def main():
         "--seed",
         type=int,
     )
-    parser.add_argument("--epsilon", type=float, default=None)
-    parser.add_argument("--delta", type=float, default=None)
     parser.add_argument("--alpha", type=float, default=0.5)
     args = parser.parse_args()
 
