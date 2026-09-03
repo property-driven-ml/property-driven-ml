@@ -566,22 +566,20 @@ class TestLeakyLogic:
         assert torch.all((and_p10 - hard_max).abs() <= (and_p2 - hard_max).abs())
         assert torch.all((or_p10 - hard_min).abs() <= (or_p2 - hard_min).abs())
 
-    def test_leaky_and_saturates_at_high_p_due_to_safe_pow(self):
-        """Documents a numerical limit of LeakyLogic.AND under float32:
-        ``safe_pow`` clamps its base to ``finfo.eps`` (~1.19e-7). Once
-        ``sum(x_i^p) < eps`` the outer ``safe_pow(sum, 1/p)`` falls back to
-        ``eps^(1/p)`` regardless of the input, so AND saturates near 1
-        instead of converging to max. Triggers when ``max(x)^p`` is below
-        eps - here p=50 and max=0.3 give max^p ≈ 7e-27 << eps. Tracked
-        as upstream issue #9.
+    def test_leaky_and_stays_close_to_max_at_high_p(self):
+        """Regression test for issue #9. Before the log-domain rewrite of
+        ``p_sum``, ``safe_pow``'s eps clamp caused AND to saturate at
+        ``eps^(1/p)`` once ``max(x)^p`` underflowed eps - here p=50 with
+        max=0.3 gave AND ≈ 0.727 regardless of input. After the fix AND
+        should converge to the hard max as p grows.
         """
         x = torch.tensor([0.3, 0.2])
         y = torch.tensor([0.1, 0.15])
         and_p50 = LeakyLogic(p=50).AND(x, y)
 
-        eps = torch.finfo(torch.float32).eps
-        saturated = eps ** (1.0 / 50.0)
-        assert torch.allclose(and_p50, saturated * torch.ones_like(and_p50), atol=1e-5)
+        hard_max = torch.maximum(x, y)
+        # At p=50 the LSE slack is log(2)/50 ≈ 0.014, scaled by max.
+        assert torch.allclose(and_p50, hard_max, atol=1e-3)
 
     def test_leaky_variadic_and_or(self, leaky_logic):
         a = torch.tensor([0.1, 0.5])
