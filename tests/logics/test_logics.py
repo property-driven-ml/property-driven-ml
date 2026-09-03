@@ -13,6 +13,8 @@ from property_driven_ml.logics.fuzzy_logics import (
     KleeneDienesFuzzyLogic,
 )
 from property_driven_ml.logics.dl2 import DL2
+from property_driven_ml.logics.leaky_logic import LeakyLogic
+from property_driven_ml.logics.qll import QLL
 from property_driven_ml.logics.stl import STL
 
 
@@ -331,6 +333,286 @@ class TestDL2Logic:
         assert x.grad is not None and torch.all(torch.isfinite(x.grad))
         assert y.grad is not None and torch.all(torch.isfinite(y.grad))
         assert z.grad is not None and torch.all(torch.isfinite(z.grad))
+
+
+class TestQLL:
+    """Test QLL (LogSumExp-smoothed real-valued logic).
+
+    QLL follows the DL2 convention: values are real, smaller = closer to
+    satisfied, positive = violation magnitude. AND is a soft-max (worst
+    violation), OR is a soft-min (best violation), both controlled by p.
+    As p -> infinity, AND/OR converge to hard max/min.
+    """
+
+    @pytest.fixture
+    def qll_logic(self):
+        return QLL(p=5.0)
+
+    def test_qll_name_includes_p(self):
+        assert QLL(p=5.0).name == "QLL_5.0"
+        assert QLL(p=10.0).name == "QLL_10.0"
+
+    def test_qll_rejects_non_positive_p(self):
+        with pytest.raises(AssertionError):
+            QLL(p=0.0)
+        with pytest.raises(AssertionError):
+            QLL(p=-1.0)
+
+    def test_qll_not_is_negation(self, qll_logic):
+        x = torch.tensor([-2.0, -0.5, 0.0, 0.5, 2.0])
+        assert torch.allclose(qll_logic.NOT(x), -x)
+
+    def test_qll_not_is_involution(self, qll_logic):
+        x = torch.tensor([-2.0, -0.5, 0.0, 0.5, 2.0])
+        assert torch.allclose(qll_logic.NOT(qll_logic.NOT(x)), x)
+
+    def test_qll_eq_is_absolute_difference(self, qll_logic):
+        x = torch.tensor([1.0, 2.0, 3.0, -1.0])
+        y = torch.tensor([1.5, 1.0, 3.0, 0.0])
+        assert torch.allclose(qll_logic.EQ(x, y), torch.abs(x - y))
+
+    def test_qll_leq_is_signed_difference(self, qll_logic):
+        x = torch.tensor([1.0, 2.0, 3.0, -1.0])
+        y = torch.tensor([1.5, 1.0, 3.0, 0.0])
+        # Positive when x > y (violation), <= 0 when satisfied.
+        assert torch.allclose(qll_logic.LEQ(x, y), x - y)
+
+    def test_qll_impl_equals_leq(self, qll_logic):
+        # QLL defines IMPL(x, y) = x - y (same as LEQ). Pin this so a
+        # future change is intentional.
+        x = torch.tensor([0.3, -0.5, 1.2])
+        y = torch.tensor([0.1, 0.7, -0.4])
+        assert torch.allclose(qll_logic.IMPL(x, y), qll_logic.LEQ(x, y))
+
+    def test_qll_and_upper_bounds_hard_max(self, qll_logic):
+        # logsumexp(p*x_i)/p ∈ [max, max + log(n)/p] elementwise
+        x = torch.tensor([0.3, -0.5, 0.8, -0.2])
+        y = torch.tensor([0.1, 0.7, -0.4, 0.9])
+        hard_max = torch.maximum(x, y)
+        soft_max = qll_logic.AND(x, y)
+        bound = hard_max + torch.log(torch.tensor(2.0)) / qll_logic.p
+        assert torch.all(soft_max >= hard_max - 1e-6)
+        assert torch.all(soft_max <= bound + 1e-6)
+
+    def test_qll_or_lower_bounds_hard_min(self, qll_logic):
+        # OR(x_i) = -logsumexp(-p*x_i)/p ∈ [min - log(n)/p, min]
+        x = torch.tensor([0.3, -0.5, 0.8, -0.2])
+        y = torch.tensor([0.1, 0.7, -0.4, 0.9])
+        hard_min = torch.minimum(x, y)
+        soft_min = qll_logic.OR(x, y)
+        bound = hard_min - torch.log(torch.tensor(2.0)) / qll_logic.p
+        assert torch.all(soft_min <= hard_min + 1e-6)
+        assert torch.all(soft_min >= bound - 1e-6)
+
+    def test_qll_and_or_converge_to_hard_extremes_as_p_grows(self):
+        x = torch.tensor([0.3, -0.5, 0.8, -0.2])
+        y = torch.tensor([0.1, 0.7, -0.4, 0.9])
+        hard_max = torch.maximum(x, y)
+        hard_min = torch.minimum(x, y)
+
+        and_p1 = QLL(p=1.0).AND(x, y)
+        and_p100 = QLL(p=100.0).AND(x, y)
+        or_p1 = QLL(p=1.0).OR(x, y)
+        or_p100 = QLL(p=100.0).OR(x, y)
+
+        # Larger p => tighter approximation of the hard extremes.
+        assert torch.all((and_p100 - hard_max).abs() <= (and_p1 - hard_max).abs())
+        assert torch.all((or_p100 - hard_min).abs() <= (or_p1 - hard_min).abs())
+
+    def test_qll_variadic_and_or(self, qll_logic):
+        a = torch.tensor([0.1, 0.5])
+        b = torch.tensor([0.3, -0.2])
+        c = torch.tensor([-0.4, 0.7])
+        d = torch.tensor([0.2, 0.1])
+
+        and_result = qll_logic.AND(a, b, c, d)
+        or_result = qll_logic.OR(a, b, c, d)
+
+        # Bounds still hold for n > 2 with log(n)/p slack.
+        hard_max = torch.maximum(torch.maximum(a, b), torch.maximum(c, d))
+        hard_min = torch.minimum(torch.minimum(a, b), torch.minimum(c, d))
+        slack = torch.log(torch.tensor(4.0)) / qll_logic.p
+        assert torch.all(and_result >= hard_max - 1e-6)
+        assert torch.all(and_result <= hard_max + slack + 1e-6)
+        assert torch.all(or_result <= hard_min + 1e-6)
+        assert torch.all(or_result >= hard_min - slack - 1e-6)
+
+    def test_qll_gradients_flow_through_and_or_leq(self, qll_logic):
+        x = torch.tensor([0.3, 0.7], requires_grad=True)
+        y = torch.tensor([0.5, 0.4], requires_grad=True)
+        z = torch.tensor([0.8, 0.2], requires_grad=True)
+
+        # Compose: OR(AND(LEQ(x,y), z), NEQ(x,z))
+        leq = qll_logic.LEQ(x, y)
+        and_term = qll_logic.AND(leq, z)
+        neq = qll_logic.NEQ(x, z)
+        loss = qll_logic.OR(and_term, neq).sum()
+        loss.backward()
+
+        for t in (x, y, z):
+            assert t.grad is not None
+            assert torch.all(torch.isfinite(t.grad))
+
+    def test_qll_numerical_stability_with_large_p(self):
+        # logsumexp must keep AND/OR finite even at p=100 with large inputs.
+        logic = QLL(p=100.0)
+        x = torch.tensor([10.0, -10.0, 5.0, -5.0])
+        y = torch.tensor([-10.0, 10.0, -5.0, 5.0])
+        assert torch.all(torch.isfinite(logic.AND(x, y)))
+        assert torch.all(torch.isfinite(logic.OR(x, y)))
+
+
+class TestLeakyLogic:
+    """Test LeakyLogic (softplus-LEQ, p-norm AND/OR).
+
+    LeakyLogic is a DL2 variant whose defining property is that gradients
+    keep flowing even when the constraint is satisfied: where DL2's
+    LEQ = relu(x - y) hits zero (and zero gradient) at the sat boundary,
+    LeakyLogic's LEQ = softplus(x - y) stays strictly positive and
+    differentiable everywhere. AND/OR are p-norm and negative-p-norm,
+    both upper- / lower-bounding the hard max / min on non-negative
+    inputs (the typical output of LEQ).
+    """
+
+    @pytest.fixture
+    def leaky_logic(self):
+        return LeakyLogic()
+
+    def test_leaky_name_and_default_p(self, leaky_logic):
+        assert leaky_logic.name == "LL"
+        assert leaky_logic.p == 2
+
+    def test_leaky_not_is_unsupported(self, leaky_logic):
+        # Like DL2, LeakyLogic forbids general negation - constraints must
+        # be written with negation pushed inward (NOT(LEQ) -> GT etc.).
+        with pytest.raises(NotImplementedError, match="rewrite the constraint"):
+            leaky_logic.NOT(torch.tensor([0.3]))
+
+    def test_leaky_leq_is_softplus_of_difference(self, leaky_logic):
+        x = torch.tensor([0.3, 1.0, -0.5, 2.0])
+        y = torch.tensor([0.7, 1.0, 0.0, 1.5])
+        expected = torch.nn.functional.softplus(x - y)
+        assert torch.allclose(leaky_logic.LEQ(x, y), expected)
+
+    def test_leaky_leq_is_strictly_positive_everywhere(self, leaky_logic):
+        # softplus > 0 for all real inputs, including at and past the sat
+        # boundary - this is the property that gives "leaky" its name.
+        x = torch.linspace(-5.0, 5.0, steps=21)
+        y = torch.zeros_like(x)
+        assert torch.all(leaky_logic.LEQ(x, y) > 0)
+
+    def test_leaky_gradient_flows_past_sat_boundary(self, leaky_logic):
+        """The defining behavioral difference between LeakyLogic and DL2:
+        at a satisfied constraint (x < y), DL2's gradient is exactly zero,
+        but LeakyLogic's gradient is the sigmoid of the (negative) gap.
+        """
+        x_leaky = torch.tensor([0.3], requires_grad=True)
+        x_dl2 = torch.tensor([0.3], requires_grad=True)
+        y = torch.tensor([0.7])  # x <= y is satisfied with margin 0.4
+
+        leaky_logic.LEQ(x_leaky, y).sum().backward()
+        DL2().LEQ(x_dl2, y).sum().backward()
+
+        # DL2: relu'(-0.4) = 0
+        assert torch.allclose(x_dl2.grad, torch.zeros_like(x_dl2.grad))
+        # LeakyLogic: softplus'(-0.4) = sigmoid(-0.4) ≈ 0.401
+        expected_leaky_grad = torch.sigmoid(torch.tensor(-0.4))
+        assert torch.allclose(x_leaky.grad, expected_leaky_grad, atol=1e-6)
+        assert x_leaky.grad.abs() > 0.1
+
+    def test_leaky_lt_pins_strict_offset(self, leaky_logic):
+        # LT(x, y) = LEQ(x + 1e-3, y). At x == y this gives softplus(1e-3),
+        # not softplus(0) - pin the magic constant so a future tweak is
+        # intentional and visible.
+        x = torch.tensor([1.0, 2.0, -0.5])
+        lt = leaky_logic.LT(x, x)
+        expected = torch.nn.functional.softplus(torch.tensor(1e-3))
+        assert torch.allclose(lt, expected * torch.ones_like(x))
+
+    def test_leaky_and_upper_bounds_hard_max(self, leaky_logic):
+        # p-norm: (sum x_i^p)^(1/p) ∈ [max, n^(1/p) * max] for non-negative inputs.
+        x = torch.tensor([0.3, 0.5, 0.8, 0.2])
+        y = torch.tensor([0.1, 0.7, 0.4, 0.9])
+        hard_max = torch.maximum(x, y)
+        soft_max = leaky_logic.AND(x, y)
+        upper = (2 ** (1.0 / leaky_logic.p)) * hard_max
+        assert torch.all(soft_max >= hard_max - 1e-6)
+        assert torch.all(soft_max <= upper + 1e-6)
+
+    def test_leaky_or_lower_bounds_hard_min(self, leaky_logic):
+        # Negative-p-norm: (sum x_i^{-p})^{-1/p} ∈ [min / n^(1/p), min].
+        x = torch.tensor([0.3, 0.5, 0.8, 0.2])
+        y = torch.tensor([0.1, 0.7, 0.4, 0.9])
+        hard_min = torch.minimum(x, y)
+        soft_min = leaky_logic.OR(x, y)
+        lower = hard_min / (2 ** (1.0 / leaky_logic.p))
+        assert torch.all(soft_min <= hard_min + 1e-6)
+        assert torch.all(soft_min >= lower - 1e-6)
+
+    def test_leaky_and_or_converge_to_hard_extremes_as_p_grows(self):
+        # Inputs kept in [0.5, 0.9] so the inner sum(x^p) stays above
+        # safe_pow's eps clamp - see test_leaky_and_saturates_at_high_p
+        # for what goes wrong outside that regime.
+        x = torch.tensor([0.6, 0.7, 0.8, 0.5])
+        y = torch.tensor([0.5, 0.8, 0.6, 0.9])
+        hard_max = torch.maximum(x, y)
+        hard_min = torch.minimum(x, y)
+
+        and_p2 = LeakyLogic(p=2).AND(x, y)
+        and_p10 = LeakyLogic(p=10).AND(x, y)
+        or_p2 = LeakyLogic(p=2).OR(x, y)
+        or_p10 = LeakyLogic(p=10).OR(x, y)
+
+        assert torch.all((and_p10 - hard_max).abs() <= (and_p2 - hard_max).abs())
+        assert torch.all((or_p10 - hard_min).abs() <= (or_p2 - hard_min).abs())
+
+    def test_leaky_and_saturates_at_high_p_due_to_safe_pow(self):
+        """Documents a numerical limit of LeakyLogic.AND under float32:
+        ``safe_pow`` clamps its base to ``finfo.eps`` (~1.19e-7). Once
+        ``sum(x_i^p) < eps`` the outer ``safe_pow(sum, 1/p)`` falls back to
+        ``eps^(1/p)`` regardless of the input, so AND saturates near 1
+        instead of converging to max. Triggers when ``max(x)^p`` is below
+        eps - here p=50 and max=0.3 give max^p ≈ 7e-27 << eps. Tracked
+        as upstream issue #9.
+        """
+        x = torch.tensor([0.3, 0.2])
+        y = torch.tensor([0.1, 0.15])
+        and_p50 = LeakyLogic(p=50).AND(x, y)
+
+        eps = torch.finfo(torch.float32).eps
+        saturated = eps ** (1.0 / 50.0)
+        assert torch.allclose(and_p50, saturated * torch.ones_like(and_p50), atol=1e-5)
+
+    def test_leaky_variadic_and_or(self, leaky_logic):
+        a = torch.tensor([0.1, 0.5])
+        b = torch.tensor([0.3, 0.2])
+        c = torch.tensor([0.4, 0.7])
+        d = torch.tensor([0.2, 0.1])
+
+        and_result = leaky_logic.AND(a, b, c, d)
+        or_result = leaky_logic.OR(a, b, c, d)
+
+        hard_max = torch.maximum(torch.maximum(a, b), torch.maximum(c, d))
+        hard_min = torch.minimum(torch.minimum(a, b), torch.minimum(c, d))
+        slack = 4 ** (1.0 / leaky_logic.p)
+        assert torch.all(and_result >= hard_max - 1e-6)
+        assert torch.all(and_result <= slack * hard_max + 1e-6)
+        assert torch.all(or_result <= hard_min + 1e-6)
+        assert torch.all(or_result >= hard_min / slack - 1e-6)
+
+    def test_leaky_gradients_flow_through_compound_expression(self, leaky_logic):
+        x = torch.tensor([0.3, 0.7], requires_grad=True)
+        y = torch.tensor([0.5, 0.4], requires_grad=True)
+        z = torch.tensor([0.8, 0.2], requires_grad=True)
+
+        leq_xy = leaky_logic.LEQ(x, y)
+        leq_yz = leaky_logic.LEQ(y, z)
+        loss = leaky_logic.OR(leaky_logic.AND(leq_xy, leq_yz), leq_xy).sum()
+        loss.backward()
+
+        for t in (x, y, z):
+            assert t.grad is not None
+            assert torch.all(torch.isfinite(t.grad))
 
 
 class TestSTLLogic:
