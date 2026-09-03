@@ -4,7 +4,7 @@ from .logic import Logic
 
 from typing import NoReturn
 
-from ..utils import safe_pow
+from ..utils import safe_zero
 
 
 class LeakyLogic(Logic):
@@ -43,9 +43,11 @@ class LeakyLogic(Logic):
         return self.LEQ(x + delta, y)
 
     def p_sum(self, *xs: torch.Tensor, p: float) -> torch.Tensor:
+        # Log-domain p-norm: exp(LSE(p log x) / p) == (sum x^p)^(1/p).
+        # Avoids the safe_pow eps-clamp underflow that saturates the naive
+        # form at high |p|. See issue #9.
         x = torch.stack(xs, dim=0)
-
-        return safe_pow(torch.sum(safe_pow(x, p), dim=0), 1.0 / p)
+        return torch.exp(torch.logsumexp(p * torch.log(safe_zero(x)), dim=0) / p)
 
     def AND(self, *xs: torch.Tensor) -> torch.Tensor:
         # p -> infty means sharper max (i.e. closer to standard max)
