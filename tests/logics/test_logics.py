@@ -11,6 +11,7 @@ from property_driven_ml.logics.fuzzy_logics import (
     GoedelFuzzyLogic,
     LukasiewiczFuzzyLogic,
     KleeneDienesFuzzyLogic,
+    YagerFuzzyLogic,
 )
 from property_driven_ml.logics.dl2 import DL2
 from property_driven_ml.logics.stl import STL
@@ -478,3 +479,48 @@ class TestLogicConsistency:
                 right_side = logic.OR2(logic.NOT(x), logic.NOT(y))
                 # Note: This might not hold exactly for all fuzzy logics
                 # but should be close for many cases
+
+
+class TestYagerANDBoundary:
+    """Regression tests for issue #11: YagerFuzzyLogic.AND must satisfy the
+    t-norm boundary axiom T(1, 1) = 1.
+
+    The previous implementation clamped the inner ``sum((1-x)^p)`` to
+    ``eps=1e-6`` before the p-th root, so for all-true inputs it returned
+    ``1 - eps^(1/p)`` instead of 1 (0.937 at the default p=5, 0.499 at
+    p=20). The log-domain rewrite removes the clamp on the sum, so the
+    error is bounded by machine eps for every p.
+    """
+
+    def test_and_at_full_truth_is_one(self):
+        ones = torch.ones(3)
+        for p in (1, 2, 5, 10, 20, 50):
+            result = YagerFuzzyLogic(p=p).AND(ones, ones)
+            assert torch.allclose(result, torch.ones_like(result)), (
+                f"T(1,1) != 1 at p={p}: got {result}"
+            )
+
+    def test_and_identity_with_true(self):
+        # Boundary axiom T(x, 1) = x.
+        x = torch.tensor([0.0, 0.25, 0.5, 0.75, 1.0])
+        result = YagerFuzzyLogic(p=5).AND(x, torch.ones_like(x))
+        assert torch.allclose(result, x, atol=1e-5)
+
+    def test_and_interior_matches_textbook_formula(self):
+        x = torch.tensor([0.2, 0.5, 0.8])
+        y = torch.tensor([0.6, 0.5, 0.9])
+        for p in (2, 5, 10):
+            ref = torch.clamp(1.0 - ((1 - x) ** p + (1 - y) ** p) ** (1.0 / p), min=0.0)
+            assert torch.allclose(YagerFuzzyLogic(p=p).AND(x, y), ref, atol=1e-6)
+
+    def test_and_with_false_is_false(self):
+        # False stays absorbing after the rewrite.
+        x = torch.tensor([0.3, 0.7, 1.0])
+        result = YagerFuzzyLogic(p=5).AND(x, torch.zeros_like(x))
+        assert torch.allclose(result, torch.zeros_like(x))
+
+    def test_and_gradients_finite_at_boundaries(self):
+        x = torch.tensor([0.0, 0.3, 1.0], requires_grad=True)
+        y = torch.tensor([0.5, 0.5, 1.0])
+        YagerFuzzyLogic(p=5).AND(x, y).sum().backward()
+        assert x.grad is not None and torch.all(torch.isfinite(x.grad))
