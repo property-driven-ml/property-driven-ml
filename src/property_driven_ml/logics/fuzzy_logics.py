@@ -2,7 +2,7 @@ import torch
 
 from .logic import Logic
 
-from ..utils import safe_div, safe_pow
+from ..utils import safe_div, safe_pow, safe_zero
 
 
 class FuzzyLogic(Logic):
@@ -255,18 +255,20 @@ class YagerFuzzyLogic(FuzzyLogic):
 
     def AND(self, *xs: torch.Tensor) -> torch.Tensor:
         """n-ary Yager t-norm."""
-        eps = 1e-6
-
-        z = torch.sum(
-            torch.pow(1.0 - torch.stack(xs, dim=0), self.p),
-            dim=0,
+        # Log-domain p-norm of the complements:
+        #   (sum (1-x_i)^p)^(1/p) == exp(LSE(p log(1-x_i)) / p)
+        # The previous form clamped the inner sum to eps=1e-6, and the clamp
+        # survived the outer p-th root: for all-true inputs the result was
+        # 1 - eps^(1/p) instead of 1, violating the t-norm boundary axiom
+        # T(1, 1) = 1 (issue #11; same bug class as #9). In log domain no
+        # clamp on the sum is needed; safe_zero only guards log(0), and its
+        # effect on the result is bounded by machine eps for every p instead
+        # of eps^(1/p).
+        one_minus = 1.0 - torch.stack(xs, dim=0)
+        root = torch.exp(
+            torch.logsumexp(self.p * torch.log(safe_zero(one_minus)), dim=0) / self.p
         )
-
-        return torch.clamp(
-            1.0 - torch.pow(torch.clamp(z, min=eps), 1.0 / self.p),
-            min=0.0,
-            max=1.0,
-        )
+        return torch.clamp(1.0 - root, min=0.0, max=1.0)
 
     def OR(self, *xs: torch.Tensor) -> torch.Tensor:
         """n-ary Yager t-conorm."""
